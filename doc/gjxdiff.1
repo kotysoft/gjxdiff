@@ -1,0 +1,589 @@
+.\" gjxdiff(1) -- hand-maintained; transcribed from the flag definitions in
+.\" src/main.rs (the code is the single source of truth). Update this page
+.\" whenever a flag, default, disclosure or exit rule changes.
+.TH GJXDIFF 1 "2026-08-04" "gjxdiff 0.8.0" "User Commands"
+.SH NAME
+gjxdiff \- structural diff for JSON and NDJSON files
+.SH SYNOPSIS
+.B gjxdiff
+.RI [ OPTIONS ]
+.I FILE_A
+.I FILE_B
+.br
+.B gjxdiff
+.B \-\-about
+.br
+.B gjxdiff
+.B \-\-completions
+.I SHELL
+.SH DESCRIPTION
+.B gjxdiff
+compares two JSON or NDJSON files structurally and reports the
+differences. It is built for files of any size: inputs are memory-mapped,
+never loaded into RAM; working state lives in temporary sidecar files
+under a memory budget; diff records spool to disk as they are found \(em
+never accumulated in memory \(em and the report is written out when the
+comparison completes. The same inputs and flags produce a bit-identical report,
+on this machine and on any other: the default memory budget is a fixed
+4 GiB, so no internal limit \(em and therefore nothing in the report
+\(em depends on how much RAM happens to be free.
+.PP
+The input format is detected per file (extension and content); a JSON
+file can be compared against an NDJSON file. NDJSON files are compared
+record by record: arrays of records with a detected (or manually set)
+key are matched by key value, order-insensitively \(em a pure reorder
+produces no records but still exits 1, disclosed as an order-only
+difference. Renames and moved subtrees are detected and reported as
+their own record kinds.
+.PP
+Output mode is selected git-style: when stdout is a terminal, a
+color-coded human view is rendered; when stdout is piped or redirected,
+the machine NDJSON report is emitted (byte-identical regardless of
+flags).
+.BR \-\-human ,
+.B \-\-ndjson
+and
+.B \-\-stat
+force a mode. Progress and every disclosure note go to stderr. All
+stderr text passes through a terminal-safety escaping pass: bytes
+derived from file content or argv (raw ESC, other C0/C1 controls,
+bidirectional override code points) are escaped visibly and can never
+inject terminal control sequences.
+.SH OPTIONS
+.TP
+.I FILE_A FILE_B
+The two inputs. Required for every comparison; only the print-and-exit
+flags
+.RB ( \-\-about ,
+.BR \-\-completions )
+run without them. Passing
+.B \-
+for ONE of them reads that side from standard input: the stream is
+buffered to a temporary file under
+.B \-\-temp
+first (removed with the run directory \(em see \fB\-\-temp\fR), its format is detected
+from the content alone (stdin has no file name, so the .ndjson/.jsonl
+extension shortcut never applies), and the report and every message
+name that input "\-". Both sides cannot be "\-" (a stream can only be
+read once), and an interactive terminal on stdin is refused with exit 2
+instead of waiting for typed input. While stdin is buffered the
+progress line shows bytes read without a percentage (the total is
+unknown until the pipe ends). "\-" composes with
+.B "\-\-patch \-"
+(stdin and stdout are different streams).
+.TP
+.BR \-q ", " \-\-quiet
+Suppress all output; the exit code alone answers.
+.TP
+.BI \-\-max\-diffs " N"
+Emit at most
+.I N
+diff records. This truncates the OUTPUT only \(em the full comparison
+still runs and no work is skipped: the exit code, totals and summary
+reflect the complete diff, and the summary discloses the truncation.
+Conflicts with
+.BR \-\-patch .
+.TP
+.BI \-\-memory\-limit " SIZE"
+The memory budget: the anonymous memory (heap) the engine may plan for.
+Accepts bytes or a K/M/G suffix (KiB/MiB/GiB, case-insensitive), e.g.
+512M, 2G. Default: a fixed 4 GiB on every machine, so the budget \(em
+and every cap derived from it \(em is the same number everywhere, and
+the report does not depend on the machine's momentary state. An
+explicit value is used verbatim: nothing clamps, raises or reinterprets
+it in either direction, including above physical RAM. The budget covers
+heap memory only; memory-mapped file pages sit outside it, because the
+kernel reclaims them under pressure rather than failing an allocation.
+Inside a container they are still charged to the container's memory
+limit alongside the heap, and the physical guard below accounts for
+that. The
+engine's internal pool sizes (alignment cap, work stack, move
+candidates, memos) scale with the budget, so a larger
+limit buys item-exact alignment of larger structures, not just later
+aborts; a smaller one coarsens sooner.
+.IP
+The fixed default trades precision for reproducibility, and on a large
+machine it is worth raising. The default resolves the same limits on a
+laptop and on a 64 GB build server \(em 6710886 children aligned
+exactly per container, 3919580 move candidates per side \(em because
+that is what makes a default report reproducible everywhere. The tool
+does not help itself to memory you have; raising the budget is how you
+spend it. With
+.BR "\-\-memory\-limit 32G"
+the alignment cap becomes 53687091 and the move pool 31356644 per side,
+so structures the default coarsens into one region_changed are
+reported element by element. Every limit that actually bit is
+disclosed on stderr and echoed in the meta line, so a coarsened run
+always tells you a larger budget would have said more.
+.IP
+A separate PHYSICAL GUARD watches what the run can actually get. It
+aborts when anonymous memory passes the budget or 85% of MemAvailable
+at launch, whichever is lower, and \(em separately \(em when the
+GROWTH of a container's memory use since launch passes 85% of the room
+that was free under that container's limit at launch. The container
+check covers cgroup v1 and cgroup v2, every ancestor cgroup (a parent
+can be tighter than your own), and every mounted view of the
+hierarchy. Growth is measured live, because inside a container the
+run's memory-mapped input and its temporary files are charged to the
+same limit as its heap \(em and so is every other process in the
+cgroup, so a neighbour growing into the remaining room still ends in
+this tool's clean abort rather than a kernel kill. What a neighbour
+already held at launch is subtracted first: a container mostly full of
+someone else does not refuse a comparison that fits in the room that
+is left. Page cache the kernel can reclaim is not counted, so merely
+reading a large file in a container never triggers it.
+.IP
+.B memory.max
+always counts.
+.B memory.high
+throttles instead of killing, and counts as a limit only from the
+moment nothing is left to reclaim into: when the cgroup cannot swap at
+all (\fBmemory.swap.max\fR 0, or no swap on the machine) it counts
+from the start, and when the cgroup can swap it counts from the moment
+the swap allowance is effectively exhausted \(em until then the
+throttle merely slows the run down and it still finishes, while past
+that point the throttle stalls the run indefinitely and a prompt abort
+is the only useful outcome. v1's
+.B memory.soft_limit_in_bytes
+is not a limit for this purpose \(em it only biases reclaim priority
+under machine-wide pressure \(em and is deliberately ignored.
+.IP
+The guard can only stop a run \(em it never changes a cap and never
+changes output, so a machine or container smaller than the budget
+still produces byte-identical results for every run that fits. When it
+trips, the message names which number bound the run, reports the
+figures, and says what to do:
+.RS
+.PP
+.EX
+gjxdiff: machine memory exhausted (rss 1.8 GiB > physical guard 1.7 GiB); partial temp files removed
+gjxdiff: the machine bound this run \(em the guard is 85% of MemAvailable at launch (1.7 GiB), below the 4 GiB memory budget; free memory on this machine, or pass a smaller --memory-limit (a smaller budget may coarsen large arrays and objects instead of aligning them exactly)
+
+gjxdiff: container memory limit reached (growth since launch 679.8 MiB > container guard 679.6 MiB); partial temp files removed
+gjxdiff: a container memory limit bound this run \(em the cgroup v2 limit is 800 MiB, 523.4 KiB of it was in use at launch, and the guard stops the run at 85% of the 799.5 MiB that was free (679.6 MiB), below the 4 GiB memory budget; reclaimable page cache is not counted; raise the container's memory limit, free memory in the container, or pass a smaller --memory-limit (a smaller budget may coarsen large arrays and objects instead of aligning them exactly)
+.EE
+.RE
+.IP
+In a container so tight that the run cannot even unwind in the room
+left above the guard, a third line reports that the run was ended
+immediately instead. The exit code, the message and the temp-file
+cleanup are the same; only the graceful unwind is skipped. That makes
+a clean early exit overwhelmingly likely, but it is not a guarantee:
+in a narrow band of container limits the kernel's OOM killer can still
+win the race against the abort itself, in which case the run ends with
+the kernel's kill (exit code 137) and temporary files may be left
+behind \(em the next start's sweep removes them.
+.IP
+If neither /proc/meminfo nor any cgroup limit can be read the guard has
+no physical component and falls back to the budget alone. A cgroup
+limit that is readable while its usage file is not (a masked or
+restricted /sys/fs/cgroup view) is watched through the nearest parent
+cgroup whose usage is readable \(em which may abort the run earlier
+than the limit alone requires \(em and a warning at launch says so.
+The room the guard shares out is then the limit minus everything that
+parent already held at launch, which can be far smaller than what the
+limit alone would leave \(em down to nothing, when the parent already
+held more than the limit \(em so a run that would fit under the limit
+itself can still be refused. The guard also depends on the usage file
+it watches staying readable for the whole run: one that turns
+unreadable mid-run and stays that way leaves the limit unwatched from
+that point on, without a further message. If
+no usage file is readable at any level, the warning states instead
+that the limit cannot be watched at all, and if the container then
+runs out of memory the kernel ends the run with no message and
+temporary files may be left behind (a later run with the same
+\fB\-\-temp\fR removes them). These warnings print even under
+\fB\-\-quiet\fR.
+.TP
+.BI \-\-temp " DIR"
+Root directory for temporary files (default: the system temp dir). Run
+data lives in
+.IR DIR /gjxdiff/run\-<pid>\-<nonce>,
+removed on exit \(em including on Ctrl-C. Two narrow cases can outrun
+the cleanup: a second SIGINT/SIGTERM within the shutdown's first
+milliseconds, and a kernel out-of-memory kill inside a container too
+small for the workload while an abort is already under way; whatever
+remains \(em like directories left by killed runs \(em is swept at the
+next start. Created if missing; the
+.IR DIR /gjxdiff
+container is removed again when it is left empty (never while another
+run's data is inside).
+.TP
+.BI \-\-align\-cap " N|unlimited"
+Max direct children per container aligned exactly; a larger container
+degrades to one coarse "region_changed" record, disclosed on stderr. A
+positive count, or "unlimited" to align any size (memory is then
+governed by the memory budget alone). Default: scaled from the memory
+budget as budget/640, never below 500000 \(em with the fixed 4 GiB
+default budget that is exactly 6710886 children, the same number on
+every machine and in every run. On a run where an over-cap container
+was actually encountered, the resolved value is disclosed in a stderr
+note (every mode) and echoed in the meta line's "align_cap" filter key
+(see REPORT FORMAT). Raising the cap also raises the work-stack limit
+to twice the cap; the move-candidate pool is not affected by this flag
+\(em it follows the budget, so
+.B \-\-memory\-limit
+is the knob for it.
+.TP
+.BI \-\-large\-arrays " MODE"
+How containers larger than the alignment cap are handled.
+.B coarse
+(the default, and the only mode available in this version) degrades
+each over-cap divergent region to one coarse "region_changed" record,
+disclosed on stderr.
+.B exact
+\(em a disk-spilled exact path with no cap \(em is PLANNED for a future
+version; passing it today exits 2 with a clear message. The active mode
+is always echoed in the meta line's "large_arrays" filter key.
+.TP
+.BI \-\-max\-temp " SIZE"
+Abort when the run's temporary files (sidecars, spools, the result
+file \(em everything under this run's temp directory) exceed this total
+size. Same size grammar as
+.B \-\-memory\-limit
+(bytes or a K/M/G suffix). No default: temp use is unlimited unless
+set. Enforcement is sampled several times a second rather than checked
+on every write, so a run that spools quickly can pass the cap by what
+it wrote within one sampling interval before it is stopped. Measured
+across varied corpora, peak temp use ranged from roughly 0.15x to 2.1x
+of the two inputs' combined size, driven mainly by how many records
+and nodes the inputs pack per byte \(em many tiny records land near
+the high end, fewer larger records near the low end \(em with the
+amount of difference a secondary factor. There is no reliable rule
+from input size alone \(em the cap is a backstop against runaway disk
+use, not a meter. Size one by measuring an uncapped run on
+representative inputs, then keep generous headroom.
+Exceeding the budget is a clean exit 2 ("temp budget exceeded") with
+every partial temp file removed.
+.TP
+.BI \-\-key " FIELDS"
+Record identity for array pairing: comma-separated field names that
+jointly identify a record (compound key, at most 16 fields). Repeatable;
+occurrences accumulate ("\-\-key region \-\-key id" =
+"\-\-key region,id"). One level of nesting via a dot ("meta.id"); "\\,"
+escapes a literal comma in a field name. Fields are forced globally:
+arrays where they resolve are matched by them, others fall back to
+autodetection, then order-based alignment. "\-\-key none" (alone)
+disables keyed matching entirely. Default: autodetect. Every keyed
+pairing, rejected key and quality degradation is disclosed on stderr.
+.TP
+.BI \-\-ignore " PATTERNS"
+Exclude fields/paths from the comparison: matching nodes are treated as
+absent on BOTH sides \(em no records for them or beneath them, and
+subtrees differing only in ignored content compare AND pair as
+identical. Repeatable; commas split patterns ("\\," = literal comma). A
+bare name ("ts") matches that member at ANY depth. Anything containing
+"$", ".", "[" or "]" is an anchored path from the root: "$.meta.ts"
+(the "$." is optional), "items[0].v" ([N] = exact array position,
+positional only \(em key-matched records are not masked by position),
+"$.arr[*].ts" ([*] = any position), "$.cfg.*" (* = any member name at
+that level), ["dotted.name"] (quoted names for dots, special
+characters, edge whitespace; [""] = the empty member name). Active
+patterns and every masked site are disclosed on stderr; when nothing
+but ignored content differs, the exit code is 0.
+.TP
+.BI \-\-path " PATH"
+Compare only the subtree at this exact path. Both files must contain it
+\(em missing on either side is an error naming the file. Report paths
+are then rooted at the selected subtree ("$" = the path) and the
+applied path is disclosed on stderr. Single occurrence. Anchored
+address, no wildcards: "$.data.items[3].users" (the "$" is optional;
+[N] = exact array position \(em on NDJSON, "$[N]" selects record N,
+i.e. line N+1), ["dotted.name"] quotes names containing dots, brackets
+or edge whitespace ([""] = the empty member name). A scalar target
+compares as a single value. "\-\-path $" selects the whole document. A
+member name duplicated at its level in either file makes the address
+ambiguous \(em error; compare its parent.
+.B \-\-ignore
+patterns stay anchored at the ORIGINAL document root;
+.B \-\-key
+applies inside the subtree.
+.TP
+.BR \-H ", " \-\-human
+Human-readable view: color-coded records grouped by parent path, with
+old \-> new values, ending in the stat footer. The default when stdout
+is a terminal; this flag forces it even when piped.
+.TP
+.B \-\-ndjson
+Machine NDJSON report even on a terminal (the piped/redirected default;
+byte-identical either way).
+.TP
+.B \-\-stat
+Print only the stat footer (change totals); no per-record output.
+.TP
+.BI \-\-color " WHEN"
+When the human view uses color: "auto" = only on a terminal (the
+NO_COLOR convention is respected), "always" = ANSI even piped (for
+.BR "less \-R" ),
+"never". The machine report is never colored. Default: auto.
+.TP
+.BI \-\-progress " WHEN"
+Progress on stderr: "auto" = rewritten status line on a terminal only,
+"always" = plain sequential lines for CI logs (no rewriting, max one
+line per stage per ~2s), "never" = off.
+.B \-\-quiet
+overrides. Default: auto.
+.TP
+.BI \-\-patch " FILE"
+Also write an RFC 6902 JSON Patch (one JSON array of add/remove/replace
+operations) that transforms file A into file B under gjxdiff's semantic
+equality. "\-" writes the patch to stdout INSTEAD of the report (the
+two formats never share a stream). The file is written atomically
+(temp + rename); an error or interrupt leaves nothing behind. The
+export fails with exit 2 \(em never a silently partial patch \(em when
+a needed record has no concrete RFC 6901 address or when keyed pairing
+absorbed a record reorder no patch operation could reproduce (rerun
+with "\-\-key none" for a positional patch). Conflicts with
+.B \-\-max\-diffs
+(a truncated patch would corrupt data) and
+.B \-\-only
+(a filtered patch would be silently partial).
+.TP
+.BI \-\-only " KINDS"
+Emit only these record kinds (comma-separated; repeatable, occurrences
+accumulate):
+.BR add ", " remove ", " change ", " type
+(type_changed),
+.B rename
+(key_renamed),
+.B move
+(moved_from + moved_to pairs),
+.B coarse
+(region_changed). Under order-based alignment a displaced item reports
+as a move pair when it is an object or array of at least 64 bytes in
+its own file; displaced scalars and smaller containers report as
+removed+added instead. Keyed arrays absorb reorders: order-only
+differences produce no records at all, so there is nothing to filter
+for them. Only the report is filtered \(em the comparison is not
+narrowed: the summary and stat footer keep the full totals plus the
+suppressed count, stderr discloses the suppression per kind, the meta
+line's "only" filter key echoes the active set, and the EXIT CODE
+always reflects the full comparison (a run whose every difference is
+suppressed still exits 1). Emitted record lines are byte-identical to
+the unfiltered report's (the "i" field keeps the unfiltered index).
+Conflicts with
+.BR \-\-patch .
+.TP
+.BI \-\-profile " NAME"
+Flag bundle preset, applied BEFORE explicit flags \(em an explicit flag
+always overrides its profile component:
+.RS
+.TP
+.B ci
+\-\-ndjson \-\-color=never \-\-progress=never
+.TP
+.B quick
+\-\-max\-diffs 1000 \-\-progress=auto
+.TP
+.B thorough
+\-\-align\-cap unlimited \-\-progress=auto
+.RE
+.IP
+Profiles never change comparison semantics silently: a limiting
+component (quick's \-\-max\-diffs) is disclosed exactly like the
+explicit flag would be, and the report meta line carries the resolved
+component flags, never the profile name.
+.B \-\-profile quick
+conflicts with
+.B \-\-patch
+(its \-\-max\-diffs component would truncate the patch, and
+\-\-max\-diffs itself cannot combine with \-\-patch); drop the profile
+or drop \-\-patch.
+.TP
+.B \-\-about
+Print the version/attribution block plus a one-line description and the
+licensing contact, then exit 0. Like every print-and-exit flag
+.RB ( \-\-completions ", " \-\-help ", " \-\-version ),
+it runs BEFORE run-time validation: combined with flags that would be
+refused at run time (say, an unavailable mode like
+.BR "\-\-large\-arrays exact" ),
+it still prints and exits 0. Malformed flag syntax and unknown values
+remain parse errors (exit 2) in any combination.
+.TP
+.BI \-\-completions " SHELL"
+Print a shell completion script for
+.BR bash ", " zsh " or " fish
+to stdout, then exit 0. The script is generated from the live flag
+table, so it cannot drift from the binary. Install e.g.:
+.IP
+.EX
+gjxdiff \-\-completions bash > /etc/bash_completion.d/gjxdiff
+.EE
+.TP
+.BR \-h ", " \-\-help
+Print help (\-h for a summary).
+.TP
+.BR \-V ", " \-\-version
+Print the version and attribution block (both spellings print the same
+block).
+.SH EXIT STATUS
+.TP
+.B 0
+The inputs are identical: byte-identical, identical under semantic
+comparison (whitespace, number and string-escape representation
+normalize), or identical apart from
+.BR \-\-ignore d
+content.
+.TP
+.B 1
+Differences found. This includes order-only differences (zero records)
+and runs whose every record was suppressed by
+.BR \-\-only .
+.TP
+.B 2
+Error: malformed input, invalid flags, a failed patch export, or a
+tripped memory or temp budget. A parse error names the file and the byte
+offset of the offending byte
+.RI ( FILE ": format: " MESSAGE " at byte " OFFSET ;
+the offset points at the offending byte or the byte where the problem
+became detectable, e.g. the opening byte of a container left unclosed
+at end of input, and is omitted only where no single offending byte
+exists, such as blank input). No report is emitted, with one exception:
+a
+.BI \-\-patch " FILE"
+run whose final rename fails exits 2 with the already-streamed report
+on stdout.
+.TP
+.B 130
+Interrupted (SIGINT/SIGTERM). Temporary files are removed (a second
+signal within the shutdown's first milliseconds can outrun the cleanup;
+the next start sweeps what remains); stdout may
+carry an already-flushed prefix of the report \(em treat it as
+truncated.
+.SH REPORT FORMAT
+The machine report (piped default, or
+.BR \-\-ndjson )
+is NDJSON: one JSON object per line. The FIRST line is a versioned meta
+record; consumers gate on its "gjxdiff" field (report format version,
+currently 1; schema stability "draft" until the v1 schema freeze).
+It identifies the inputs by BASENAME only (full paths never enter the
+report), carries each side's byte size and detected format, and echoes
+the active comparison-narrowing flags under "filters" \(em always all
+eight keys: "key", "ignore", "path", "align_cap", "move_cap",
+"max_diffs", "only", "large_arrays" (null/[] when inactive;
+"large_arrays" is always "coarse", the only over-cap mode that
+exists). "align_cap" is the explicit flag value when one was passed;
+under the default cap it is null, EXCEPT on runs that entered a
+cap-dependent rail \(em an over-cap container, or a work-stack trip,
+whose limit is twice the cap \(em the records then depend on the cap,
+so the resolved value is echoed there (and disclosed as a stderr note
+in every output mode). "move_cap" follows
+the same rule for the budget-scaled move-candidate pool: null unless
+the pool saturated during the run; the resolved per-side pool cap
+when it did \(em moves past the cap report as plain removed+added
+records, so the records depend on it (also disclosed as a stderr note
+in every output mode, with a computed \-\-memory\-limit remedy).
+DETERMINISM: every budget-derived limit resolves from the memory
+budget alone, and the default budget is a fixed 4 GiB, so the same
+inputs and flags produce the same report on every machine \(em
+including the runs where a limit actually bit. Nothing here varies
+with free RAM; passing
+.B \-\-memory\-limit
+changes the budget, and therefore may change those limits and the
+records that depend on them, but any given value is as reproducible as
+the default. The one thing the environment still decides is whether the
+run COMPLETES: a machine or container that cannot supply the budget
+aborts (see the physical guard under
+.BR \-\-memory\-limit )
+rather than reporting something different.
+.PP
+Every following line is one diff record with fields:
+.PP
+.EX
+i          record index, 0-based, stable across runs (keeps the
+           unfiltered index under --only)
+op         "added" | "removed" | "changed" | "moved_from" |
+           "moved_to" | "key_renamed" | "type_changed" |
+           "region_changed"
+path       wildcard path pattern of the change site ("$.users[*].name";
+           array indices fold to [*], "$" is the root/overflow bucket)
+ptr        RFC 6901 JSON Pointer of the change site with CONCRETE array
+           indices, addressing the record's op-side instance (file A
+           for removed/moved_from, file B otherwise). Omitted -- never
+           guessed -- when no reliable single-node address exists
+           (duplicated member names on the chain, names that do not
+           decode losslessly, pattern-table pathologies).
+a_off, a_len   byte span in file A (0 for pure additions)
+b_off, b_len   byte span in file B (0 for pure removals)
+move_pair  only on moved_from/moved_to: the "i" of the counterpart
+flags      only when non-empty: "verified" | "coarsened" | "keyed"
+.EE
+.PP
+The pattern table behind the "path" field holds at most 65535 distinct
+paths besides the root \(em a fixed capacity that does not scale with
+.B \-\-memory\-limit
+\(em past it, records carry the aggregated path "$" with no ptr and
+one stderr note counts them.
+.PP
+The stderr summary counts changed (changed + key_renamed + type_changed
++ region_changed), added, deleted (the record class the report and the
+stat footer call "removed"), moved (subtree pairs count once).
+Anything the comparison skips, absorbs or coarsens \(em keyed pairing
+ignoring order, ignored fields, coarsened regions, a saturated
+move-candidate pool, suppressed record kinds \(em is disclosed on
+stderr: the report is never silently partial.
+.SH INPUT LENIENCY
+gjxdiff is not an RFC 8259 validator. String contents are compared as
+raw bytes: unescaped control characters, lone surrogates and invalid
+UTF-8 do not abort the diff. A leading UTF-8 BOM is tolerated; in
+NDJSON mode a BOM at the start of any record line is also tolerated
+(stripped and disclosed on stderr). Structural errors (unclosed
+containers, trailing commas, unquoted keys, non-JSON formats) are
+rejected with exit 2. Flag VALUES are whitespace-trimmed before
+parsing, so a member name with leading or trailing whitespace needs the
+quoted form ($["name "]) in
+.B \-\-path
+and
+.BR \-\-ignore .
+.SH ENVIRONMENT
+.TP
+.B NO_COLOR
+Set and non-empty: disables color under \-\-color=auto (an explicit
+"always" or "never" wins).
+.SH EXAMPLES
+Compare two files, human view on a terminal:
+.IP
+.EX
+gjxdiff a.json b.json
+.EE
+.PP
+CI gate \(em machine report, no color, no progress; the exit code
+answers:
+.IP
+.EX
+gjxdiff \-\-profile ci a.ndjson b.ndjson > report.ndjson
+.EE
+.PP
+Match records by compound key, ignore volatile fields:
+.IP
+.EX
+gjxdiff \-\-key region,id \-\-ignore ts,updated_at a.ndjson b.ndjson
+.EE
+.PP
+Only adds and removes, as a quick content census:
+.IP
+.EX
+gjxdiff \-\-only add,remove a.json b.json
+.EE
+.PP
+Compare one subtree and export an RFC 6902 patch:
+.IP
+.EX
+gjxdiff \-\-path '$.data.items' \-\-patch changes.json a.json b.json
+.EE
+.PP
+Compare a live API response (standard input) against a saved snapshot:
+.IP
+.EX
+curl \-s https://api.example.com/items | gjxdiff \- snapshot.json
+.EE
+.SH LICENSE
+Copyright (C) 2026 Tibor Kovacs (Kotysoft).
+License: free for individuals and organizations under 100 people, with
+attribution; commercial license required for automated use in larger
+organizations and for embedding in commercial products. See the LICENSE
+file shipped with the binary.
+Contact: support@giantjson.com
+.SH SEE ALSO
+.BR diff (1),
+.BR jq (1)

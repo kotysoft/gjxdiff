@@ -1,0 +1,6 @@
+* text=auto
+*.bin -text
+*.tar.gz -text
+*.sha256 text eol=lf
+SHA256SUMS text eol=lf
+gjxdiff.1 text eol=lf

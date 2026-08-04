@@ -1,0 +1,40 @@
+gjxdiff 0.8.0 — first public release (2026-08-04)
+
+gjxdiff is a command-line tool for structural comparison of JSON and
+NDJSON files of any size. It memory-maps its inputs, keeps working
+state in temporary files under a fixed memory budget (default 4 GiB,
+adjustable with --memory-limit), and streams diff records to disk as
+they are found, so multi-gigabyte files can be compared without
+loading either input into RAM. The same inputs and flags produce a
+byte-identical report on any machine. Output formats: an NDJSON
+machine report with a versioned meta line, a color-coded human view
+on terminals, a summary footer (--stat), and RFC 6902 JSON Patch
+export (--patch). Records can be paired by key (--key, with
+autodetection), and the comparison can be narrowed with --path and
+--ignore. Exit codes: 0 identical, 1 differences found, 2 error,
+130 interrupted.
+
+This is pre-1.0 software: the report format and flags may still
+change between minor releases. The report's meta line carries
+"stability":"draft" until the v1 schema freeze.
+
+Known limitations are documented in doc/MANUAL.md: section 12
+(Troubleshooting) explains every disclosure the tool prints about
+work it skipped, absorbed or coarsened, and section 13 (Limits at a
+glance) lists the hard limits — among them: containers above the
+alignment cap are reported as one coarse region each (disclosed, cap
+raisable via --memory-limit or --align-cap); only whole containers
+of at least 64 bytes report as moves; at most 65535 distinct report
+paths; single-threaded by design; Linux x86-64 only.
+
+Package contents: gjxdiff (static x86_64 Linux binary, musl libc),
+LICENSE, README.md, doc/MANUAL.md, doc/QUICKREF.md, doc/gjxdiff.1
+(man page), RELEASENOTES.
+
+License: free for individuals and organizations under 100 people,
+with attribution; commercial license required for automated use in
+larger organizations and for embedding in commercial products.
+The software ships under the gjxdiff License, Version 1.1
+(2026-08-04); see LICENSE for the governing text. Attribution for
+free use: "gjxdiff by Tibor Kovacs (Kotysoft)".
+Contact: support@giantjson.com

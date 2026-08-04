@@ -1,0 +1,138 @@
+gjxdiff License — Version 1.1 (2026-08-04)
+
+Copyright (C) 2026 Tibor Kovacs (Kotysoft). All rights reserved.
+
+This is a proprietary license. gjxdiff is NOT open-source software.
+It is free to use for individuals and small organizations under the
+terms below.
+
+1. DEFINITIONS
+
+   "Software" means the gjxdiff executable in binary form, including
+   its documentation and any files distributed with it.
+
+   "You" means the individual or legal entity exercising rights under
+   this license. For an organization, "You" includes every affiliate
+   under common control.
+
+   "Small Organization" means an individual acting on their own
+   behalf, or an organization that, together with its affiliates, has
+   fewer than 100 total individuals working for it as employees or
+   independent contractors at any time during the current or preceding
+   calendar year.
+
+   "Interactive Use" means execution of the Software started manually
+   by a person for that person's own immediate task.
+
+   "Automated Use" means any execution that is not Interactive Use,
+   including continuous-integration pipelines, servers, scheduled or
+   triggered jobs, build systems, and any production or operational
+   process.
+
+   "Free App" means a distributed application that involves no direct
+   or indirect monetization: no purchase price, subscription, paid
+   tier, advertising, sale of user data, and no use of the application
+   to promote or support a commercial product or service.
+
+2. FREE GRANT — INDIVIDUALS AND SMALL ORGANIZATIONS
+
+   If You are a Small Organization, You may use the Software free of
+   charge for any purpose, including Your own Automated Use, subject
+   to the Attribution requirement (Section 5) and the Restrictions
+   (Section 6).
+
+3. LARGE ORGANIZATIONS
+
+   If You are not a Small Organization:
+   a. Interactive Use by Your personnel is free of charge, subject to
+      Sections 5 and 6.
+   b. Any Automated Use requires a commercial license (Section 7).
+
+4. EMBEDDING AND REDISTRIBUTION
+
+   Distributing the Software, or any product that includes or invokes
+   it, requires a commercial license (Section 7), with one exception:
+   You may include the unmodified Software in a Free App, provided the
+   Free App satisfies the Attribution requirement (Section 5).
+   Standalone redistribution of the unmodified Software free of
+   charge, with all notices intact, is permitted.
+
+5. ATTRIBUTION
+
+   All free use under Sections 2–4 requires author credit:
+   "gjxdiff by Tibor Kovacs (Kotysoft)". A non-prominent placement is
+   sufficient — an about, info, or credits section of the embedding
+   application, or the accompanying documentation of a redistribution.
+
+6. RESTRICTIONS
+
+   You may not: (a) modify, adapt, or create derivative works of the
+   Software; (b) reverse engineer, decompile, or disassemble it,
+   except to the extent applicable law permits despite this
+   limitation; (c) remove or alter any copyright, license, or
+   attribution notice; (d) sublicense, rent, lease, or sell the
+   Software on a standalone basis; (e) circumvent the license terms,
+   including misrepresenting organization size or disguising Automated
+   Use as Interactive Use.
+
+7. COMMERCIAL LICENSES
+
+   Commercial licenses for Automated Use by large organizations and
+   for embedding in commercial products are available from the author.
+   Contact: support@giantjson.com
+
+8. FEEDBACK
+
+   If You send the author suggestions, bug reports, or other feedback
+   about the Software, the author may use it freely — including to
+   change or improve the Software — with no payment, attribution, or
+   confidentiality owed to You.
+
+9. NO WARRANTY
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+   NON-INFRINGEMENT.
+
+10. NO SUPPORT
+
+   The author has no obligation to provide support, maintenance,
+   updates, upgrades, or new versions of the Software. Anything of
+   that kind that is provided is at the author's discretion and is
+   itself subject to this license (Section 13).
+
+11. LIMITATION OF LIABILITY
+
+   TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL THE
+   AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING
+   FROM OR IN CONNECTION WITH THE SOFTWARE OR ITS USE.
+
+12. TERMINATION
+
+   This license ends automatically if You breach its terms. For a
+   first breach, the license continues if You fully cure the breach
+   within 32 days of receiving notice of it. Upon termination You
+   must stop all use of the Software. Sections 8–11 survive
+   termination.
+
+13. LICENSE VERSIONS
+
+   Each release of the Software is governed by the license text
+   distributed with that release. The author may distribute future
+   releases under revised license versions; a revised version never
+   retroactively changes the terms for a copy You already obtained.
+
+14. SEVERABILITY
+
+   If any provision of this license is held unenforceable, it is
+   enforced to the maximum extent permitted, and the remaining
+   provisions stay in full force.
+
+15. WORLDWIDE APPLICATION
+
+   This license applies worldwide. Following the convention of public
+   software licenses, it names no single governing jurisdiction; it is
+   enforced under the copyright law applicable in the licensee's
+   jurisdiction (per the Berne Convention and, within the European
+   Union, applicable EU law).
