@@ -1,3 +1,35 @@
+gjxdiff 0.8.1 — performance release (2026-08-05)
+
+The static musl binary now carries its own x86-64 memcpy/memmove
+implementation instead of musl's. musl's memcpy pays a fixed startup
+cost per call that dominated the millions of small field- and
+record-sized copies a diff performs; replacing it brings the shipped
+binary on par with a glibc build.
+
+How much faster it runs depends on how much of the run is CPU work.
+Measured against 0.8.0 on the same inputs and the same machine:
+1.7-1.9x on CPU-bound comparisons from 83 MB to 821 MB per side
+(1.94x on an 821 MB single-document JSON pair, 1.89x warm), 1.35x on
+a 2 MB pair, and about 1.3x on a 1.36 GB per side NDJSON pair, where
+the run reads 2.7 GB, spools 1.55 GB of temporary files and the wall
+clock is dominated by I/O. On that largest pair under a 512 MiB
+memory limit the two builds are indistinguishable.
+
+The comparison engine is unchanged. Reports, exit codes, disclosures
+and memory behavior are the same as 0.8.0, with one deliberate
+exception: the machine report's meta line carries the tool version,
+so its "tool" field now reads "0.8.1". Everything after that first
+line is byte-identical to 0.8.0 on every input tested. Golden-file
+tests that pin a whole report need their first line refreshed.
+
+The software ships under the gjxdiff License, Version 1.1
+(2026-08-04); per its section 13, each release is governed by the
+license text shipped with it. See LICENSE for the governing text.
+Attribution for free use: "gjxdiff by Tibor Kovacs (Kotysoft)".
+Contact: support@giantjson.com
+
+----------------------------------------------------------------------
+
 gjxdiff 0.8.0 — first public release (2026-08-04)
 
 gjxdiff is a command-line tool for structural comparison of JSON and

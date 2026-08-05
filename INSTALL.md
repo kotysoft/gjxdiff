@@ -8,25 +8,25 @@ runs on any distribution and in containers. Nothing else is needed.
 Either the tarball (binary plus documentation):
 
 ```sh
-curl -LO https://github.com/kotysoft/gjxdiff/raw/main/dist/0.8.0/gjxdiff-0.8.0-x86_64-linux-musl.tar.gz
+curl -LO https://github.com/kotysoft/gjxdiff/raw/main/dist/0.8.1/gjxdiff-0.8.1-x86_64-linux-musl.tar.gz
 ```
 
 or the bare binary:
 
 ```sh
-curl -LO https://github.com/kotysoft/gjxdiff/raw/main/dist/0.8.0/gjxdiff-0.8.0-x86_64-linux-musl.bin
+curl -LO https://github.com/kotysoft/gjxdiff/raw/main/dist/0.8.1/gjxdiff-0.8.1-x86_64-linux-musl.bin
 ```
 
 ## 2. Verify
 
-Checksums are in [`dist/0.8.0/SHA256SUMS`](dist/0.8.0/SHA256SUMS):
+Checksums are in [`dist/0.8.1/SHA256SUMS`](dist/0.8.1/SHA256SUMS):
 
 ```sh
-echo "1397d2240c28478c3a250d4b072e6fe35075916e4bf7d6b2807abd7fe7cad295  gjxdiff-0.8.0-x86_64-linux-musl.tar.gz" | sha256sum -c
+echo "0465178ea553bdcae739e750f962e762ac024fa86a6c8c77a312548dc3b629e6  gjxdiff-0.8.1-x86_64-linux-musl.tar.gz" | sha256sum -c
 ```
 
 ```sh
-echo "f1244f161ad38a88d8e612e6158502e2ef3e448332444f34626869a934ba76fd  gjxdiff-0.8.0-x86_64-linux-musl.bin" | sha256sum -c
+echo "9bfcf8a5cf4267323c7adf9943fcdbe37bc07704878a5153e930002fb87f4577  gjxdiff-0.8.1-x86_64-linux-musl.bin" | sha256sum -c
 ```
 
 ## 3. Install
@@ -34,14 +34,14 @@ echo "f1244f161ad38a88d8e612e6158502e2ef3e448332444f34626869a934ba76fd  gjxdiff-
 From the tarball:
 
 ```sh
-tar xzf gjxdiff-0.8.0-x86_64-linux-musl.tar.gz
-sudo install -m 0755 gjxdiff-0.8.0-x86_64-linux-musl/gjxdiff /usr/local/bin/gjxdiff
+tar xzf gjxdiff-0.8.1-x86_64-linux-musl.tar.gz
+sudo install -m 0755 gjxdiff-0.8.1-x86_64-linux-musl/gjxdiff /usr/local/bin/gjxdiff
 ```
 
 From the bare binary:
 
 ```sh
-sudo install -m 0755 gjxdiff-0.8.0-x86_64-linux-musl.bin /usr/local/bin/gjxdiff
+sudo install -m 0755 gjxdiff-0.8.1-x86_64-linux-musl.bin /usr/local/bin/gjxdiff
 ```
 
 Check:
@@ -53,7 +53,7 @@ gjxdiff --version
 No root? Install to `~/.local/bin` instead (make sure it is on your `PATH`):
 
 ```sh
-install -m 0755 gjxdiff-0.8.0-x86_64-linux-musl.bin ~/.local/bin/gjxdiff
+install -m 0755 gjxdiff-0.8.1-x86_64-linux-musl.bin ~/.local/bin/gjxdiff
 ```
 
 ## 4. Optional: man page and shell completion
@@ -62,7 +62,7 @@ The man page ships in the tarball (also in this repository at
 [`doc/gjxdiff.1`](doc/gjxdiff.1)):
 
 ```sh
-sudo install -m 0644 gjxdiff-0.8.0-x86_64-linux-musl/doc/gjxdiff.1 /usr/local/share/man/man1/
+sudo install -m 0644 gjxdiff-0.8.1-x86_64-linux-musl/doc/gjxdiff.1 /usr/local/share/man/man1/
 man gjxdiff
 ```
 

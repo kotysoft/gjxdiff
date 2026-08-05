@@ -59,7 +59,7 @@ Exit codes: `0` identical, `1` differences found, `2` error, `130` interrupted.
 
 ## Install
 
-Download the release from [`dist/0.8.0/`](dist/0.8.0/), verify the checksum,
+Download the release from [`dist/0.8.1/`](dist/0.8.1/), verify the checksum,
 put the binary on your `PATH`. Step-by-step instructions, man page and shell
 completion setup: [INSTALL.md](INSTALL.md).
 
@@ -71,7 +71,8 @@ completion setup: [INSTALL.md](INSTALL.md).
   troubleshooting section that explains every disclosure the tool can print.
 - [doc/QUICKREF.md](doc/QUICKREF.md) — one-page cheat sheet.
 - [doc/gjxdiff.1](doc/gjxdiff.1) — man page (`man -l doc/gjxdiff.1`).
-- [RELEASENOTES](RELEASENOTES) — what is in 0.8.0 and its known limits.
+- [RELEASENOTES](RELEASENOTES) — what changed in each release, and the known
+  limits.
 - `gjxdiff --help` and `gjxdiff --about`.
 
 ## License

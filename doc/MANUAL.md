@@ -224,7 +224,7 @@ line included. (Two fields are run-derived by design: `filters.align_cap` and
 influenced the records — see the table below.)
 
 ```json
-{"gjxdiff":1,"tool":"0.8.0","stability":"draft","a":{"name":"a.json","bytes":10485760,"format":"json"},"b":{"name":"b.json","bytes":10493284,"format":"json"},"filters":{"key":null,"ignore":[],"path":null,"align_cap":null,"move_cap":null,"max_diffs":null,"only":null,"large_arrays":"coarse"}}
+{"gjxdiff":1,"tool":"0.8.1","stability":"draft","a":{"name":"a.json","bytes":10485760,"format":"json"},"b":{"name":"b.json","bytes":10493284,"format":"json"},"filters":{"key":null,"ignore":[],"path":null,"align_cap":null,"move_cap":null,"max_diffs":null,"only":null,"large_arrays":"coarse"}}
 ```
 
 | Field | Type | Meaning |
@@ -397,7 +397,7 @@ The view opens with a header block carrying the same information as the machine 
 line:
 
 ```
-gjxdiff 0.8.0
+gjxdiff 0.8.1
 a: orders-2026-07.ndjson (ndjson, 2684354560 bytes)
 b: orders-2026-08.ndjson (ndjson, 2691823104 bytes)
 filters: key=order_id · ignore=ts,updated_at

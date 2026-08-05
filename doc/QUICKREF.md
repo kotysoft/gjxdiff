@@ -102,7 +102,7 @@ exit 0 with a `[]` patch.
 ## Meta line (report line 1)
 
 ```json
-{"gjxdiff":1,"tool":"0.8.0","stability":"draft","a":{...},"b":{...},"filters":{...}}
+{"gjxdiff":1,"tool":"0.8.1","stability":"draft","a":{...},"b":{...},"filters":{...}}
 ```
 
 | Key | Value |
