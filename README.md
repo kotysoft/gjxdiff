@@ -120,12 +120,16 @@ the diff idea got its own standalone tool.
 
 ## Install
 
-`gjxdiff` ships as a prebuilt, dependency-free static Linux binary. Take it from
-[`dist/latest/`](https://github.com/kotysoft/gjxdiff/tree/main/dist/latest/),
-verify the checksum, and drop it anywhere on your `PATH`:
+`gjxdiff` ships as a prebuilt, dependency-free static Linux binary. The
+download link is the same for every release:
 
 ```sh
-install -m 0755 gjxdiff /usr/local/bin/gjxdiff
+curl -LO https://github.com/kotysoft/gjxdiff/releases/latest/download/gjxdiff-x86_64-linux-musl.tar.gz
+curl -LO https://github.com/kotysoft/gjxdiff/releases/latest/download/SHA256SUMS
+sha256sum -c SHA256SUMS
+mkdir -p gjxdiff-dist
+tar xzf gjxdiff-x86_64-linux-musl.tar.gz -C gjxdiff-dist --strip-components=1
+sudo install -m 0755 gjxdiff-dist/gjxdiff /usr/local/bin/gjxdiff
 gjxdiff --version
 ```
 

@@ -3,56 +3,32 @@
 Requirements: Linux, x86-64. The binary is fully static (musl libc), so it
 runs on any distribution and in containers. Nothing else is needed.
 
-Everything below points at
-[`dist/latest/`](https://github.com/kotysoft/gjxdiff/tree/main/dist/latest/),
-which always holds the current release under the same filenames. These commands
-do not change from one release to the next; the version is inside the binary
-(`gjxdiff --version`), the machine report's meta line, and the directory the
-tarball unpacks into.
+Everything below points at the
+[latest release](https://github.com/kotysoft/gjxdiff/releases/latest). The
+filenames never change, so the same commands work for every release. The
+version is inside the binary (`gjxdiff --version`), the machine report's meta
+line, and the directory the tarball unpacks into.
 
-## 1. Download
-
-Either the tarball (binary plus documentation):
+## 1. Download and verify
 
 ```sh
-curl -LO https://github.com/kotysoft/gjxdiff/raw/main/dist/latest/gjxdiff-x86_64-linux-musl.tar.gz
+curl -LO https://github.com/kotysoft/gjxdiff/releases/latest/download/gjxdiff-x86_64-linux-musl.tar.gz
+curl -LO https://github.com/kotysoft/gjxdiff/releases/latest/download/SHA256SUMS
+sha256sum -c SHA256SUMS
 ```
 
-or the bare binary:
+Expect one `OK` line. A `FAILED` line, or no output at all, means the file is
+not what was published: delete it and download again.
 
-```sh
-curl -LO https://github.com/kotysoft/gjxdiff/raw/main/dist/latest/gjxdiff-x86_64-linux-musl.bin
-```
+## 2. Install
 
-## 2. Verify
-
-Take the checksum list from the same directory and check what you downloaded
-against it. `--ignore-missing` lets the one list cover both assets, so this
-works whether you took the tarball, the binary, or both:
-
-```sh
-curl -LO https://github.com/kotysoft/gjxdiff/raw/main/dist/latest/SHA256SUMS
-sha256sum --ignore-missing -c SHA256SUMS
-```
-
-Expect one `OK` line per file you downloaded. A `FAILED` line, or no output at
-all, means the file is not what was published: delete it and download again.
-
-## 3. Install
-
-From the tarball. It unpacks into a directory named after the release, so
+The tarball unpacks into a directory named after the release, so
 `--strip-components=1` puts the contents straight into a directory you name:
 
 ```sh
 mkdir -p gjxdiff-dist
 tar xzf gjxdiff-x86_64-linux-musl.tar.gz -C gjxdiff-dist --strip-components=1
 sudo install -m 0755 gjxdiff-dist/gjxdiff /usr/local/bin/gjxdiff
-```
-
-From the bare binary:
-
-```sh
-sudo install -m 0755 gjxdiff-x86_64-linux-musl.bin /usr/local/bin/gjxdiff
 ```
 
 Check:
@@ -64,10 +40,10 @@ gjxdiff --version
 No root? Install to `~/.local/bin` instead (make sure it is on your `PATH`):
 
 ```sh
-install -Dm 0755 gjxdiff-x86_64-linux-musl.bin ~/.local/bin/gjxdiff
+install -Dm 0755 gjxdiff-dist/gjxdiff ~/.local/bin/gjxdiff
 ```
 
-## 4. Optional: man page and shell completion
+## 3. Optional: man page and shell completion
 
 The man page ships in the tarball (also in this repository at
 [`doc/gjxdiff.1`](doc/gjxdiff.1)). `install -D` creates the man directory if
@@ -91,6 +67,19 @@ sudo mkdir -p /etc/bash_completion.d
 gjxdiff --completions bash | sudo tee /etc/bash_completion.d/gjxdiff > /dev/null
 ```
 
+## Earlier versions
+
+Every release is on the
+[releases page](https://github.com/kotysoft/gjxdiff/releases), each with the
+same two files. To install one, put its tag in place of `latest`:
+
+```sh
+curl -LO https://github.com/kotysoft/gjxdiff/releases/download/v0.8.1/gjxdiff-x86_64-linux-musl.tar.gz
+curl -LO https://github.com/kotysoft/gjxdiff/releases/download/v0.8.1/SHA256SUMS
+```
+
+Everything after that is the same.
+
 ## Uninstall
 
 gjxdiff writes nothing outside the files you installed and its temporary
@@ -99,5 +88,3 @@ files (removed on exit). To uninstall:
 ```sh
 sudo rm -f /usr/local/bin/gjxdiff /usr/local/share/man/man1/gjxdiff.1 /etc/bash_completion.d/gjxdiff
 ```
-
-If you installed without root, remove `~/.local/bin/gjxdiff` instead.
