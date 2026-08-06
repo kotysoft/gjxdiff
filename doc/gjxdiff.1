@@ -1,7 +1,4 @@
-.\" gjxdiff(1) -- hand-maintained; transcribed from the flag definitions in
-.\" src/main.rs (the code is the single source of truth). Update this page
-.\" whenever a flag, default, disclosure or exit rule changes.
-.TH GJXDIFF 1 "2026-08-05" "gjxdiff 0.8.1" "User Commands"
+.TH GJXDIFF 1 "2026-08-06" "gjxdiff 0.8.2" "User Commands"
 .SH NAME
 gjxdiff \- structural diff for JSON and NDJSON files
 .SH SYNOPSIS
@@ -33,8 +30,11 @@ file can be compared against an NDJSON file. NDJSON files are compared
 record by record: arrays of records with a detected (or manually set)
 key are matched by key value, order-insensitively \(em a pure reorder
 produces no records but still exits 1, disclosed as an order-only
-difference. Renames and moved subtrees are detected and reported as
-their own record kinds.
+difference. However a keyed comparison ends, stderr states how many
+records must move to reconcile the two record orders, and
+.B \-\-record\-order
+lists them as move pairs. Renames and moved subtrees are detected and
+reported as their own record kinds.
 .PP
 Output mode is selected git-style: when stdout is a terminal, a
 color-coded human view is rendered; when stdout is piped or redirected,
@@ -71,6 +71,22 @@ progress line shows bytes read without a percentage (the total is
 unknown until the pipe ends). "\-" composes with
 .B "\-\-patch \-"
 (stdin and stdout are different streams).
+.IP
+An input that is not a regular file \(em a process substitution
+.RB ( "gjxdiff <(cmd) <(cmd)" ),
+a named pipe, a socket, a device \(em is a stream, and takes the same
+route: it is copied into the run's temporary directory before the
+comparison, and the copy counts against
+.B \-\-max\-temp
+like every other temporary byte (two 3 GB streams therefore need room
+for 6 GB of copies, where two regular files need none). Both sides may
+be streams; both are read before either is indexed, so a producer
+feeding one side is not left blocked while the other is compared. Every
+message names the input the way it was typed \(em the copy's path never
+appears. Reading a stream is interruptible (Ctrl\-C exits 130 and
+removes the partial copy); a stream that never ends is stopped by
+.B \-\-max\-temp
+if one is set. Regular files are never copied.
 .TP
 .BR \-q ", " \-\-quiet
 Suppress all output; the exit code alone answers.
@@ -266,6 +282,44 @@ arrays where they resolve are matched by them, others fall back to
 autodetection, then order-based alignment. "\-\-key none" (alone)
 disables keyed matching entirely. Default: autodetect. Every keyed
 pairing, rejected key and quality degradation is disclosed on stderr.
+.IP
+Records sharing a key value pair in the order they appear, which may
+pair the wrong two. An AUTODETECTED key is therefore re-checked against
+every record of the compared range once the pairing is done and before
+anything is reported (detection itself only samples): below 99% distinct
+values it is dropped, the array falls back to order-based alignment, and
+the reason is named ("key candidate ... rejected (duplicate values)").
+A key that stays keeps the pairing \(em discarding a five-million-record
+join over one collision reports far worse \(em and its duplicates are
+disclosed by count instead ("auto key ... has duplicate values (2 of
+400000 records) ... pairing quality degraded"). A forced key is never
+dropped, and gets the same note reading "forced key".
+.TP
+.B \-\-record\-order
+Also compare RECORD ORDER inside key-matched arrays, listing every
+record that must move as a
+.B moved_from
++
+.B moved_to
+pair. Keyed matching pairs records by key value and ignores where they
+sit, which is what makes it useful on re-sorted exports; how many
+records must move is disclosed on stderr on every run, with or without
+this flag. The flag adds the records themselves to the report \(em one
+pair per moved record, so a fully re-sorted array produces a pair for
+nearly every record. The pairing is proven by the key, not by content,
+so a record that moved AND changed produces the move pair plus its
+value-level records, and the two halves may differ in content. A moved
+item that is not a container is counted but not listed (a scalar is
+never a move record), and that difference is disclosed. Where several
+sets of records of the same size would each reconcile the order, one of
+them is reported: a run is deterministic and the count is the same
+either way, but comparing the same two files in the other argument
+order can name a different set, and so list a different number of them.
+Arrays aligned
+by order \(em including everything under "\-\-key none" \(em always
+compare order and are unaffected. The
+.B \-\-patch
+export refuses an absorbed reorder with or without this flag.
 .TP
 .BI \-\-ignore " PATTERNS"
 Exclude fields/paths from the comparison: matching nodes are treated as
@@ -331,9 +385,14 @@ equality. "\-" writes the patch to stdout INSTEAD of the report (the
 two formats never share a stream). The file is written atomically
 (temp + rename); an error or interrupt leaves nothing behind. The
 export fails with exit 2 \(em never a silently partial patch \(em when
-a needed record has no concrete RFC 6901 address or when keyed pairing
-absorbed a record reorder no patch operation could reproduce (rerun
-with "\-\-key none" for a positional patch). Conflicts with
+a needed record has no concrete RFC 6901 address, or when keyed pairing
+absorbed a record reorder, which the patch export does not support
+(rerun with "\-\-key none" for a positional patch; the error states how
+many records must move). The refusal stands under
+.B \-\-record\-order
+too: a record that moved and changed carries value-level records
+alongside its move pair, and applying both would patch it twice.
+Conflicts with
 .B \-\-max\-diffs
 (a truncated patch would corrupt data) and
 .B \-\-only
@@ -352,9 +411,14 @@ accumulate):
 (region_changed). Under order-based alignment a displaced item reports
 as a move pair when it is an object or array of at least 64 bytes in
 its own file; displaced scalars and smaller containers report as
-removed+added instead. Keyed arrays absorb reorders: order-only
-differences produce no records at all, so there is nothing to filter
-for them. Only the report is filtered \(em the comparison is not
+removed+added instead. Keyed arrays absorb reorders: a record that only
+changed position produces no records, so
+.B \-\-only move
+comes up empty there \(em however many records moved. The stderr key
+note states how many must move, and
+.B \-\-record\-order
+puts the pairs in the report, where this filter selects them like any
+other move. Only the report is filtered \(em the comparison is not
 narrowed: the summary and stat footer keep the full totals plus the
 suppressed count, stderr discloses the suppression per kind, the meta
 line's "only" filter key echoes the active set, and the EXIT CODE
@@ -496,7 +560,18 @@ op         "added" | "removed" | "changed" | "moved_from" |
            "moved_to" | "key_renamed" | "type_changed" |
            "region_changed"
 path       wildcard path pattern of the change site ("$.users[*].name";
-           array indices fold to [*], "$" is the root/overflow bucket)
+           array indices fold to [*], "$" is the root/overflow bucket).
+           A member name that would collide with the grammar -- one
+           containing . [ ], starting or ending with a space, the empty
+           name, or a name made only of * -- is written as a quoted
+           step: $["http.status_code"], $["x[*]"][*], $[""], and
+           $['a"b.c'] when the name itself contains a double quote.
+           That is the spelling --path and --ignore accept, so a
+           printed path can be pasted back. Ordinary names are
+           unchanged. A name carrying BOTH quote characters has no
+           spelling in this grammar (there are no escapes): it prints
+           double-quoted so the step boundaries stay visible, but only
+           "ptr" addresses it losslessly
 ptr        RFC 6901 JSON Pointer of the change site with CONCRETE array
            indices, addressing the record's op-side instance (file A
            for removed/moved_from, file B otherwise). Omitted -- never
@@ -517,7 +592,14 @@ one stderr note counts them.
 .PP
 The stderr summary counts changed (changed + key_renamed + type_changed
 + region_changed), added, deleted (the record class the report and the
-stat footer call "removed"), moved (subtree pairs count once).
+stat footer call "removed"), moved (subtree pairs count once). Records
+a keyed join found out of position and did not list follow the move
+count as "(+N reordered, not listed)": the move count is a count of
+move RECORDS, and without
+.B \-\-record\-order
+a keyed reorder produces none. With the flag the clause covers only the
+displaced items no listing can express \(em a scalar has no node a move
+record could address.
 Anything the comparison skips, absorbs or coarsens \(em keyed pairing
 ignoring order, ignored fields, coarsened regions, a saturated
 move-candidate pool, suppressed record kinds \(em is disclosed on

@@ -7,6 +7,9 @@ gjxdiff --completions <bash|zsh|fish>
 ```
 
 `-` as one input reads that side from standard input. Not both sides.
+An input that is not a regular file (process substitution, named pipe, device)
+is copied into the run's temp directory first and counts against `--max-temp`;
+`gjxdiff <(cmd) <(cmd)` works, and messages keep the name you typed.
 Terminal stdout renders the human view; a pipe or redirect carries the machine
 NDJSON report. All progress and disclosures go to stderr.
 
@@ -31,7 +34,19 @@ NDJSON report. All progress and disclosures go to stderr.
 |------|--------|
 | `--key FIELDS` | Force record identity. Comma-separated, compound, max 16 fields; repeatable; `meta.id` for one level of nesting; `\,` for a literal comma |
 | `--key none` | Disable keyed matching; arrays align by order |
+| `--record-order` | Also compare record order inside key-matched arrays: every record that must move is listed as a `moved_from` + `moved_to` pair. Off by default — the count is disclosed on stderr either way |
 | *(default)* | Autodetect, falling back to order-based alignment |
+
+Keyed matching pairs records by key value and ignores where they sit. Every
+keyed run's stderr note states how many records must move to reconcile the two
+record orders — the minimum number that have to be relocated, so one record
+jumping over 6000 others is `1`. `--record-order` puts those records in the
+report; without it the stat footer's move count stays 0 and carries
+`(+N reordered, not listed)`. A displaced item that is not an object or array is
+counted but never listed, so with the flag the note reads `N of M record(s)
+listed as moved` and the clause keeps the remainder. Where several sets of the
+same size would each reconcile the order, one is reported: the count is stable,
+which records carry it is not.
 
 ### Narrowing
 
@@ -65,9 +80,10 @@ Ignore pattern forms: `ts` (bare name, any depth) · `$.meta.ts` (anchored) ·
 | `--patch -` | Write the patch to stdout instead of the report |
 
 Refuses with exit 2 (and leaves no file) when a needed record has no concrete RFC
-6901 address or when keyed pairing absorbed a reorder (retry with `--key none`) —
-order-only differences are exactly that case. A representation-only difference is
-exit 0 with a `[]` patch.
+6901 address, or when keyed pairing absorbed a record reorder — whether the
+reorder is the only difference or sits alongside value changes, and with or
+without `--record-order`. Retry with `--key none` for a positional patch. A
+representation-only difference is exit 0 with a `[]` patch.
 
 ### Filtering and bundles
 
@@ -102,7 +118,7 @@ exit 0 with a `[]` patch.
 ## Meta line (report line 1)
 
 ```json
-{"gjxdiff":1,"tool":"0.8.1","stability":"draft","a":{...},"b":{...},"filters":{...}}
+{"gjxdiff":1,"tool":"0.8.2","stability":"draft","a":{...},"b":{...},"filters":{...}}
 ```
 
 | Key | Value |
@@ -129,7 +145,7 @@ machine.
 |-------|-------|
 | `i` | 0-based index, stable; keeps the unfiltered index under `--only` |
 | `op` | `added` `removed` `changed` `moved_from` `moved_to` `key_renamed` `type_changed` `region_changed` |
-| `path` | Wildcard pattern, e.g. `$.users[*].name`; `$` is root and the overflow bucket (table capacity: 65535 distinct paths, fixed) |
+| `path` | Wildcard pattern, e.g. `$.users[*].name`; a name containing `.`, `[`, `]`, edge spaces or nothing at all is a quoted step (`$["http.status_code"]`, `$[""]`) and pastes back into `--path` / `--ignore`; `$` is root and the overflow bucket (table capacity: 65535 distinct paths, fixed) |
 | `ptr` | RFC 6901 pointer with concrete indices, op-side (A for `removed`/`moved_from`, else B). Omitted when unprovable |
 | `a_off`, `a_len` | Byte span in A (`0` for pure additions) |
 | `b_off`, `b_len` | Byte span in B (`0` for pure removals) |
@@ -152,7 +168,10 @@ machine.
 
 No `order` kind. Under positional alignment a displaced object/array of ≥ 64 bytes
 reports as a move pair; displaced scalars and smaller containers report as
-add+remove. Keyed arrays absorb reorders: order-only differences produce no records.
+add+remove. Keyed arrays absorb reorders: a record that only changed position
+produces no records, so `--only move` comes up empty there however many records
+moved — the stderr key note gives the count, and `--record-order` puts the pairs
+in the report where this filter selects them.
 
 ## Profile expansions
 

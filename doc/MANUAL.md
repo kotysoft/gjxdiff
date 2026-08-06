@@ -32,9 +32,72 @@ for the terse reference see the man page (`gjxdiff.1`).
 
 `gjxdiff` compares two JSON or NDJSON documents structurally. It reports added,
 removed and changed values, renamed keys, type changes, moved subtrees, and — for
-containers too large to align exactly — coarse changed regions.
+containers too large to align exactly — coarse changed regions. It does this
+without ever loading either file into memory, so the same command works on a
+200-byte config and a 50 GB database export.
 
-The tool makes these promises:
+### A first comparison
+
+Two versions of a small service config:
+
+```
+// a.json                                   // b.json
+{                                           {
+  "service": "orders-api",                    "service": "orders-api",
+  "image": "registry.local/orders-api:2.4.1", "image": "registry.local/orders-api:2.5.0",
+  "port": 8080,                               "port": 9090,
+  "replicas": 2,                              "replicas": 4,
+  "features": {                               "features": {
+    "rate_limit": true,                         "rate_limit": true,
+    "retries": 3,                               "retries": 3,
+    "legacy_auth": true                         "tracing": false
+  },                                          },
+  "regions": ["eu-west", "us-east"]           "regions": ["eu-west", "us-east", "ap-south"]
+}                                           }
+```
+
+One command, no flags:
+
+```
+$ gjxdiff a.json b.json
+gjxdiff 0.8.2
+a: a.json (json, 233 bytes)
+b: b.json (json, 242 bytes)
+
+$
+  ~ image: "registry.local/orders-api:2.4.1" -> "registry.local/orders-api:2.5.0"
+  ~ port: 8080 -> 9090
+  ~ replicas: 2 -> 4
+$.features
+  - legacy_auth: true
+  + tracing: false
+$.regions
+  + [2]: "ap-south"
+
+3 changed, 2 added, 1 removed, 0 moved
+3 container pairs compared
+```
+
+How to read it:
+
+- Records are grouped under a **bold header naming their parent** — `$` is the
+  document root, `$.features` the `features` object.
+- `~` (yellow) is a changed value, shown as `old -> new`; `+` (green) is added;
+  `-` (red) is removed. The full mark table is in
+  [§5, The human view](#5-the-human-view).
+- The last two lines are the totals footer. The exit code is `1` because
+  differences were found; identical files exit `0`.
+
+This colored, grouped rendering is the **human view**, and it appears when
+stdout is a terminal. Pipe or redirect the same command and it becomes the
+**machine report** instead — NDJSON, one JSON object per record, with an
+RFC 6901 pointer and exact byte offsets into the input files
+([§4](#4-the-machine-report)). Same comparison, two presentations.
+
+### The promises
+
+The rest of this manual documents behavior feature by feature. These guarantees
+hold everywhere:
 
 - **It never loads a whole input file into RAM.** Inputs are memory-mapped and read
   in streams.
@@ -83,6 +146,8 @@ array (see [Pairing and keys](#6-pairing-and-keys)).
 
 ## 2. Quick start
 
+The four ways to ask, from most to least verbose:
+
 ```sh
 # Human view on a terminal, machine NDJSON when piped.
 gjxdiff a.json b.json
@@ -96,6 +161,68 @@ gjxdiff --stat a.json b.json
 # Just the answer.
 gjxdiff --quiet a.json b.json; echo "exit=$?"
 ```
+
+### Scaling up
+
+The same no-flag command on two exports of **five million order records,
+555 MB each**, where the second export is sorted differently — so a line-based
+`diff` would flag nearly every line:
+
+```
+$ gjxdiff orders-monday.ndjson orders-tuesday.ndjson
+gjxdiff 0.8.2
+a: orders-monday.ndjson (ndjson, 554700225 bytes)
+b: orders-tuesday.ndjson (ndjson, 554700227 bytes)
+
+$[=12228932]
+  ~ status: "cancelled" -> "shipped"
+$[=11441889]
+  ~ status: "pending" -> "cancelled"
+$[=11978411]
+  ~ status: "pending" -> "cancelled"
+
+3 changed, 0 added, 0 removed, 0 moved (+4995557 reordered, not listed; --record-order)
+4 container pairs compared
+gjxdiff: note: $[*] matched by auto key "order_id" (5000000 items compared by key) — record order not compared; 4995557 record(s) must move to reconcile the two orders (--record-order lists them as moves)
+```
+
+Three things happened without being asked for:
+
+- The NDJSON format was detected per file, and each file is treated as an array
+  of records ([§3](#3-inputs)).
+- A record key, `order_id`, was **autodetected**, so records are matched by key
+  value wherever they sit — the re-sort produces no records, and the three real
+  changes surface. Group headers show the key value: `$[=12228932]` is the
+  record whose `order_id` is 12228932 ([§6](#6-pairing-and-keys)).
+- The absorbed reorder is **disclosed**, not hidden: the stderr note names the
+  key, and both the note and the summary line carry the number of records that
+  must move to reconcile the two orders — `--record-order` lists them as move
+  pairs ([§6](#6-pairing-and-keys)). Nothing the comparison skips or absorbs is
+  ever silent.
+
+That run finished in about 16 seconds on a small 4-core VM, in bounded memory.
+Memory is governed by a budget, not by input size ([§8](#8-large-inputs)).
+
+From here, the flags follow the questions:
+
+```sh
+# Volatile fields drowning the diff? Exclude them.            (§7)
+gjxdiff --ignore ts,updated_at a.ndjson b.ndjson
+
+# Autodetection picked nothing, or the wrong field? Force it. (§6)
+gjxdiff --key region,id a.ndjson b.ndjson
+
+# Only one subtree matters.                                   (§7)
+gjxdiff --path '$.data.items' a.json b.json
+
+# CI gate: machine report, no color, no progress.             (§10, §11)
+gjxdiff --profile ci a.ndjson b.ndjson > report.ndjson
+
+# Apply the changes elsewhere: RFC 6902 JSON Patch.           (§9)
+gjxdiff --patch changes.json a.json b.json
+```
+
+### Argument rules
 
 Two positional arguments are required for every comparison. The only flags that run
 without them are `--about` and `--completions`.
@@ -146,6 +273,35 @@ Details:
 - `-` composes with `--patch -`: standard input and standard output are different
   streams.
 - Empty input is a format error: `-: format: no JSON root value`, exit 2.
+
+### Streams and process substitution
+
+An input that is not a regular file — a process substitution, a named pipe, a
+socket, a device — is a stream, and a stream cannot be memory-mapped or read twice.
+Such an input is copied into the run's temporary directory first, and the comparison
+then runs on the copy:
+
+```sh
+gjxdiff <(curl -s "$URL_A") <(curl -s "$URL_B")
+mkfifo feed; producer > feed & gjxdiff feed snapshot.json
+```
+
+Details:
+
+- Both sides may be streams at once. Both are read before either is indexed, so a
+  producer feeding one side is not left blocked while the other side is compared.
+- The copy is run data under `--temp`: it counts against `--max-temp` and is removed
+  on exit like every other temporary file. Comparing two 3 GB streams needs room for
+  6 GB of copies plus the usual working files, where two regular 3 GB files need
+  none of it.
+- The report and every message name the input the way you typed it. The copy's path
+  never appears in any output.
+- Reading a stream is interruptible: Ctrl-C ends the run with exit 130 and removes
+  the partial copy. An input that never ends (`/dev/zero`, `yes`) is stopped by
+  `--max-temp` if you set one; otherwise it keeps reading, like `cat` would.
+- A named pipe with no writer waits for one, as any reader does. The progress line
+  shows `reading input` with the bytes taken so far.
+- Regular files are never copied — nothing about a normal comparison changes.
 
 ### Documented leniency
 
@@ -224,7 +380,7 @@ line included. (Two fields are run-derived by design: `filters.align_cap` and
 influenced the records — see the table below.)
 
 ```json
-{"gjxdiff":1,"tool":"0.8.1","stability":"draft","a":{"name":"a.json","bytes":10485760,"format":"json"},"b":{"name":"b.json","bytes":10493284,"format":"json"},"filters":{"key":null,"ignore":[],"path":null,"align_cap":null,"move_cap":null,"max_diffs":null,"only":null,"large_arrays":"coarse"}}
+{"gjxdiff":1,"tool":"0.8.2","stability":"draft","a":{"name":"a.json","bytes":10485760,"format":"json"},"b":{"name":"b.json","bytes":10493284,"format":"json"},"filters":{"key":null,"ignore":[],"path":null,"align_cap":null,"move_cap":null,"max_diffs":null,"only":null,"large_arrays":"coarse"}}
 ```
 
 | Field | Type | Meaning |
@@ -269,7 +425,7 @@ interleave.
 |-------|------|---------|---------|
 | `i` | int | always | Record index, 0-based, stable across runs. Under `--only` it keeps the **unfiltered** index. |
 | `op` | string | always | One of `added`, `removed`, `changed`, `moved_from`, `moved_to`, `key_renamed`, `type_changed`, `region_changed`. |
-| `path` | string | always | Wildcard path pattern of the change site, e.g. `"$.users[*].name"`. Array indices fold to `[*]`. `"$"` is the root, and also the overflow bucket (see below). |
+| `path` | string | always | Wildcard path pattern of the change site, e.g. `"$.users[*].name"`. Array indices fold to `[*]`. A member name that would collide with the grammar is quoted: `$["http.status_code"]` (see below). `"$"` is the root, and also the overflow bucket (see below). |
 | `ptr` | string | usually | RFC 6901 JSON Pointer of the change site with **concrete** array indices. Rooted where `path` is rooted. Omitted — never guessed — when no reliable single-node address exists. |
 | `a_off` | int | always | Byte offset in file A. `0` for pure additions. |
 | `a_len` | int | always | Byte length in file A. `0` for pure additions. |
@@ -278,14 +434,39 @@ interleave.
 | `move_pair` | int | moves only | On `moved_from` / `moved_to`: the `i` of the counterpart record. |
 | `flags` | array | when non-empty | Any of `"verified"`, `"coarsened"`, `"keyed"`. |
 
+#### Names that need quoting
+
+Member names containing `.`, `[` or `]`, names that begin or end with a space, the
+empty name and names made only of `*` would read as something else in the path
+grammar, so `path` writes them as a quoted step — the same spelling `--ignore` and
+`--path` accept:
+
+| In the file | In `path` |
+|-------------|-----------|
+| `{"http.status_code": 500}` | `$["http.status_code"]` |
+| `{"x[*]": [1, 2]}` | `$["x[*]"][*]` |
+| `{"": 1}` | `$[""]` |
+| `{"a\"b.c": 1}` (name contains `"`) | `$['a"b.c']` |
+| `{"status": 500}` (ordinary name) | `$.status` — unchanged |
+
+So a path the report prints can be pasted straight back:
+
+```sh
+gjxdiff --ignore '$["http.status_code"]' a.json b.json
+```
+
+A name that both needs quoting and contains `"` **and** `'` has no spelling in this
+grammar (there are no escapes). It is printed in the double-quoted form so the step
+boundaries are still visible, but it cannot be fed back; use `ptr`, which addresses
+every name losslessly.
+
 #### About `ptr`
 
 `ptr` is the machine-safe address: standard RFC 6901 escaping (`~` becomes `~0`, `/`
 becomes `~1`), tokens are the decoded member names, and array steps carry concrete
-ordinals rather than `[*]`. The root record's pointer is `""`. It resolves the same
-way `path` reads, but without the ambiguity of the pattern language — dotted names,
-edge whitespace and the empty member name (`""`, which produces an empty token, e.g.
-`/a//b`) all address correctly.
+ordinals rather than `[*]`. The root record's pointer is `""`. It addresses a single
+node where `path` describes a pattern, and it carries every name losslessly,
+including the ones the path grammar cannot spell.
 
 One pointer per record, addressing the record's **op-side** instance: file A for
 `removed` and `moved_from`, file B for everything else. Under keyed pairing the two
@@ -384,7 +565,17 @@ appended when relevant:
 ```
 gjxdiff: 5015 changed, 571 added, 1000 deleted, 12 moved; 1571 suppressed by --only
 gjxdiff: 5015 changed, 571 added, 1000 deleted, 12 moved (stdout truncated at 1000 of 6598 records)
+gjxdiff: 1 changed, 0 added, 0 deleted, 0 moved (+996 reordered, not listed; --record-order)
 ```
+
+The `(+N reordered, not listed)` clause appears when keyed pairing absorbed a
+record reorder: `moved` counts move RECORDS, and a keyed reorder produces none
+unless [`--record-order`](#--record-order) is given. `N` is the minimum number of
+records that must be relocated — see
+[Record order under a key](#record-order-under-a-key). With the flag the listed
+moves are in the count itself, so the clause covers only what no listing can
+express — displaced scalars — and drops the flag hint, there being nothing left
+to switch on.
 
 ---
 
@@ -397,7 +588,7 @@ The view opens with a header block carrying the same information as the machine 
 line:
 
 ```
-gjxdiff 0.8.1
+gjxdiff 0.8.2
 a: orders-2026-07.ndjson (ndjson, 2684354560 bytes)
 b: orders-2026-08.ndjson (ndjson, 2691823104 bytes)
 filters: key=order_id · ignore=ts,updated_at
@@ -527,6 +718,12 @@ With a key, records are matched by key value, order-insensitively. A pure reorde
 then produces **no records** — but the file-level verdict is order-sensitive, so the
 run still exits 1 and stderr discloses the order-only difference.
 
+Order is still *measured*. Whether the reorder is the only difference or sits
+alongside value changes, every keyed run's stderr note says how many records
+must move to reconcile the two record orders, and
+[`--record-order`](#--record-order) lists them as move pairs. See
+[Record order under a key](#record-order-under-a-key).
+
 ### `--key FIELDS`
 
 Force record identity globally:
@@ -555,26 +752,59 @@ Every keyed pairing, every rejected key and every quality degradation is disclos
 stderr. Examples of what you will see:
 
 ```
-gjxdiff: note: $.orders[*] matched by auto key "order_id" (1491 items) — record order not compared
+gjxdiff: note: $.orders[*] matched by auto key "order_id" (1491 items compared by key) — record order not compared
+gjxdiff: note: $.orders[*] matched by auto key "order_id" (1491 items compared by key) — record order not compared; 1 record(s) must move to reconcile the two orders (--record-order lists them as moves)
 gjxdiff: note: keyed matching disabled (--key none) — arrays align by order only
 gjxdiff: note: --key "orderId" matched no array — the field was not found in any record (typo?); autodetect/order-based alignment used instead
 gjxdiff: note: auto key "id" at $[*] withdrawn (keyed pairing would report more churn than order-based alignment) — positional alignment used
+gjxdiff: note: key candidate "id" rejected (duplicate values) at $[*] — positional alignment used
+gjxdiff: note: auto key "id" has duplicate values (2 of 400000 records) at $ — pairing quality degraded
 gjxdiff: note: forced key "id" has duplicate values (200 of 200 records) at $ — pairing quality degraded
+gjxdiff: note: 37 key-matched array(s) in total (first 10 listed)
 ```
 
 The matched note names the array by its item pattern — `$.orders[*]` for a nested
 array, `$[*]` for the record array an NDJSON file is treated as. A key you pass
 with `--key` is a *forced* key; its successful pairings read `matched by manual
-key`, and its quality degradations (duplicate values, missing or null key fields)
-read `forced key … — pairing quality degraded`, with the affected and considered
-record counts summed over both sides.
+key`. Quality notes (duplicate values; missing or null key fields, which only a
+forced key can reach) read `… key … — pairing quality degraded`, name the array by
+its container path, and count affected and considered records over both sides.
 
-**The `(N items)` figure is not the array's length.** It counts the items the keyed
-join actually covered: the larger side of the array pair's divergent middle, after
-leading and trailing runs of already-identical records are trimmed away (summed
-when one note aggregates several array pairs). A 20,000-record file whose three
-changed records sit at ordinals 100, 150 and 10,000 reports `(9901 items)` — the
-window from 100 through 10,000 — not 20,000 and not 3. An array whose divergent
+**Duplicate key values.** Records sharing a key value cannot be told apart by it:
+they pair in the order they appear, which may pair the wrong two. Two things
+happen, and both are reported.
+
+An **autodetected** key is re-checked against every record of the compared range
+once the pairing is done, before any record is reported — detection itself only
+samples, so duplicates spread thinly through a large file can pass it. A field
+whose values turn out to be less than **99% distinct** across that range is not
+identifying records at all: the key is dropped, the array falls back to
+order-based alignment, and the reason is named.
+
+```
+gjxdiff: note: key candidate "id" rejected (duplicate values) at $[*] — positional alignment used
+```
+
+At or above that threshold the key is kept — discarding a five-million-record pairing
+over one collision would produce a far worse report than a couple of doubtful
+rows — and the duplicates are disclosed by count instead, so you can judge them:
+
+```
+gjxdiff: note: auto key "id" has duplicate values (2 of 400000 records) at $ — pairing quality degraded
+```
+
+The count is the records involved in a repeat, both sides added together; `--key
+none` or a `--key` naming a genuinely unique field removes the doubt. A key you
+force with `--key` is never dropped — forcing is your decision — but it gets the
+same note, reading `forced key` instead of `auto key`, whenever its values repeat.
+
+**The `(N items compared by key)` figure is not the array's length.** It counts the
+items the keyed join actually covered: the larger side of the array pair's divergent
+middle, after leading and trailing runs of already-identical records are trimmed
+away (summed when one note aggregates several array pairs). A 20,000-record file
+whose three changed records sit at ordinals 100, 150 and 10,000 reports
+`(9901 items compared by key)` — the window from 100 through 10,000 — not 20,000
+and not 3. An array whose divergent
 window is smaller than 4 items on either side is never auto-keyed (the positional
 aligner handles it directly), so a one-record edit produces no key note at all; a
 forced key is not subject to that minimum and joins — and reports — any window
@@ -582,6 +812,118 @@ size.
 
 At most 10 key notes of each class are listed individually; a totals line follows
 when there are more.
+
+### Record order under a key
+
+Keyed matching answers "which record is which" by key value, not by position —
+that is the whole point on a re-sorted export, and it is why order-only
+differences produce no records. What it must never do is leave you thinking
+nothing moved. Every keyed note therefore ends with the order verdict, and when
+records did move, with a count:
+
+```
+gjxdiff: note: $[*] matched by auto key "id" (7900 items compared by key) — record order not compared; 1 record(s) must move to reconcile the two orders (--record-order lists them as moves)
+```
+
+**What the number means.** It is the **minimum number of records that must be
+relocated** so that the key-matched records appear in the same relative order on
+both sides: the number of matched records minus the size of the largest set of
+them that already reads in ascending A-side order when taken in B's order (the
+members of that set need not be adjacent). It is *not* the number of records
+whose index differs. One record lifted from index
+300 to index 6999 shifts the 6699 records between them by one position each, and
+the count is **1** — the answer a person comparing the two files would give. A
+2000-record array re-sorted by a different field typically reports around 1000.
+You can check it by hand on a small file: write down the A positions of the
+matched records in B's order, cross out the fewest entries needed to leave an
+ascending sequence, and count what you crossed out.
+
+**The count is exact; which records it names is not always unique.** Where two
+different sets of records of the same size would each reconcile the order, the
+tool reports one of them. Any given run is deterministic and repeatable, and the
+count is the same whichever set is chosen — but comparing the same two files with
+the arguments in the other order can name a different set. That is visible only
+where the choice decides whether a mover is listable: with one set a displaced
+scalar carries the move and nothing can be listed, with the other a neighbouring
+record carries it and the pair appears in the report.
+
+The same number reaches every output mode. The stat footer and the machine
+summary line qualify their move count with it, because that count is a count of
+move *records* and a keyed reorder produces none:
+
+```
+1 changed, 0 added, 0 removed, 0 moved (+996 reordered, not listed; --record-order)
+```
+
+A file with more than 256 distinct key-use rows keeps only the first 256. When
+such a run counted any reordered records, one whole-run note gives the total
+across every key-matched array, so a count carried by a dropped row is never
+lost:
+
+```
+gjxdiff: note: 300 record(s) must move to reconcile record order across all key-matched arrays
+```
+
+### `--record-order`
+
+Puts those records in the report, as the same `moved_from` + `moved_to` pairs
+order-based alignment produces:
+
+```sh
+gjxdiff --record-order a.json b.json
+```
+
+```
+{"i":0,"op":"moved_from","path":"$[*]","ptr":"/300","a_off":77785,"a_len":255,"b_off":0,"b_len":0,"move_pair":1,"flags":["keyed"]}
+{"i":1,"op":"moved_to","path":"$[*]","ptr":"/6999","a_off":0,"a_len":0,"b_off":1837586,"b_len":255,"move_pair":0,"flags":["keyed"]}
+```
+
+The key note then says order was compared, and how many move records the report
+carries:
+
+```
+gjxdiff: note: $[*] matched by auto key "id" (7900 items compared by key) — record order compared; 1 record(s) listed as moved
+```
+
+- One pair per moved record. A fully re-sorted array produces a pair for nearly
+  every record, which is exactly why this is opt-in: keyed matching exists to
+  keep a re-sort from burying the value-level differences.
+- `--only move` then selects these like any other move pair, and the stat
+  footer's move count includes them.
+- The pairing is proven by the **key**, not by content. There is no 64-byte
+  floor and no move-candidate pool here (both belong to the removed/added
+  subtree join, which has to guess what pairs with what). A record that moved
+  *and* changed produces its move pair **plus** its value-level records, so the
+  two halves of a keyed move pair may differ in content.
+- A displaced item that is not an object or array is counted but not listed — a
+  scalar is never a move record, exactly as under order-based alignment. The key
+  note then names both numbers, a second note gives the reason, and the move
+  total still carries the remainder, so nothing claims that nothing moved:
+
+```
+gjxdiff: note: $[*] matched by auto key "id" (2001 items compared by key) — record order compared; 0 of 1 record(s) listed as moved
+gjxdiff: note: 1 moved item(s) are not containers and are counted but not listed — a scalar is never a move record
+gjxdiff: 1 changed, 0 added, 0 deleted, 0 moved (+1 reordered, not listed)
+```
+
+- Which records are named as the movers is one of possibly several equally
+  minimal answers, so the listing can differ between a run and the same run with
+  the files in the other order — see
+  [Record order under a key](#record-order-under-a-key). How many moved does not
+  change; which records carry them can.
+- Arrays aligned by order always compare order, so the flag changes nothing
+  under `--key none` or on any array that was not keyed.
+- The human view labels key-matched records by key value, so both halves of a
+  pair read `[=300]`; each line names its own position:
+
+```
+$
+  > [=300]: {"id":300,"name":"india india 300",… (+95 bytes) (moved away from index 300)
+  > [=300]: {"id":300,"name":"india india 300",… (+95 bytes) (moved here, index 6999)
+```
+
+- `--patch` refuses an absorbed reorder with or without this flag (see
+  [When the export refuses](#when-the-export-refuses)).
 
 When a rejected or unused key is the reason a comparison came out coarse, a
 `gjxdiff: hint:` line names the field to try first (see [Large inputs](#8-large-inputs)).
@@ -1074,7 +1416,7 @@ silently partial patch would corrupt data, so refusal is the designed behavior:
 | Situation | Why |
 |-----------|-----|
 | A needed record has no concrete RFC 6901 address (duplicate or undecodable member names, an unprovable array ordinal, the path-overflow bucket, an unrecoverable old name for a rename) | Writing it would patch the wrong node. The error names the total and the per-reason counts. |
-| Keyed pairing absorbed a record reorder — including the order-only case, where the reorder is the only difference and the report has zero records | Keyed matching ignores order, so the reorder produces no records and no operation sequence can reproduce it. Rerun with `--key none` for a positional patch. |
+| Keyed pairing absorbed a record reorder — the order-only case, where the reorder is the only difference and the report has zero records, and equally the mixed case, where value changes are reported alongside it | Keyed matching ignores order, so the reorder produces no records, and the patch export does not support one. The error states how many records must move. Rerun with `--key none` for a positional patch. The refusal stands under `--record-order` too: a record that moved *and* changed carries value-level records alongside its move pair, and applying both would patch it twice. |
 | A coarsened NDJSON virtual root | The whole record array is not one JSON value. |
 
 A representation-only difference does **not** refuse: files that differ only in
@@ -1133,9 +1475,12 @@ order-based alignment, a displaced item reports as a move pair when it is an obj
 or array of at least 64 bytes in its own file ([§8](#8-large-inputs), the
 move-candidate pool) — displaced scalars and smaller containers report as `removed`
 + `added` instead, so `--only move` on an array of small values shows nothing while
-`--only add,remove` shows the reorder. Keyed arrays absorb reorders entirely:
-order-only differences produce zero records — they surface as the verdict line and
-the exit code, which `--only` never alters.
+`--only add,remove` shows the reorder. Keyed arrays absorb reorders: a record that
+only changed position produces no records, so `--only move` comes up empty there
+however many records moved — the key note on stderr gives the count, and
+[`--record-order`](#--record-order) puts the pairs in the report, where this filter
+selects them like any other move. A pure reorder without that flag surfaces as the
+verdict line and the exit code, which `--only` never alters.
 
 **Only the report is filtered. The comparison is not narrowed.**
 
@@ -1434,8 +1779,9 @@ gjxdiff: files differ only in record order or representation; no value-level cha
 ```
 
 Keyed pairing ignores record order, so a pure reorder produces no records — but the
-file-level verdict is order-sensitive. Rerun with `--key none` to see the reorder as
-positional records.
+file-level verdict is order-sensitive. The key note on the same run says how many
+records must move; `--record-order` lists them as move pairs, and `--key none`
+aligns positionally instead.
 
 A difference in representation alone — whitespace, `1.0` vs `1.00`, escape form,
 object member order — never produces this verdict: such inputs compare identical
@@ -1468,7 +1814,8 @@ at once.
 | Temp budget (default) | Unlimited; set `--max-temp` to cap it |
 | Alignment cap (default) | Memory budget / 640, never below 500000 — 6710886 at the default budget; override with `--align-cap` |
 | Move-candidate pool (default) | 3919580 per side at the default budget; scales with the budget, never below 1000000 |
-| Move-report eligibility | Only whole objects/arrays of at least 64 bytes report as `moved_from`/`moved_to`; displaced scalars and smaller containers report as `removed` + `added` |
+| Move-report eligibility | Only whole objects/arrays of at least 64 bytes report as `moved_from`/`moved_to`; displaced scalars and smaller containers report as `removed` + `added`. The floor and the pool are properties of the removed/added subtree join: a keyed reorder listed with `--record-order` is paired by key, so any container size qualifies (scalars still cannot be move records) |
+| Keyed record order | Not compared: records pair by key value wherever they sit. Every keyed run discloses how many records must move; `--record-order` lists them as move pairs |
 | Containers above the alignment cap | Reported as one coarse `region_changed` region each. The report and stderr disclose this; the meta line echoes the cap that produced the records |
 | Exact alignment above the cap | `--large-arrays=exact` is planned, not available in this version |
 | Compound key fields | At most 16 |

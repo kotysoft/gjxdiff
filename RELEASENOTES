@@ -1,3 +1,38 @@
+gjxdiff 0.8.2 (2026-08-06)
+
+- Streams, named pipes and process substitution now work as inputs.
+- New: --record-order lists the records that moved when arrays are
+  matched by key.
+- Reported paths now quote field names containing a dot or a bracket:
+  the machine report writes $["http.status"] where earlier versions
+  wrote $.http.status. A consumer matching on the old spelling needs
+  updating.
+- Records sharing a key value are detected and reported.
+- Interrupt handling and several smaller fixes.
+- The machine report's meta line reads "tool": "0.8.2".
+
+Worth re-running if:
+
+- You compared files where the same id value occurs more than once.
+  Records could be paired with the wrong counterpart, so the report
+  could list differences that were not there. The key is now checked
+  against every record: it is either dropped in favour of order-based
+  comparison, or kept with the number of records sharing a value
+  stated.
+
+- You passed --ignore or --path a field name containing a dot or a
+  bracket, copied from a report. It could match nothing without saying
+  so. Such names are now quoted in the report and paste back
+  correctly.
+
+The software ships under the gjxdiff License, Version 1.1
+(2026-08-04); per its section 13, each release is governed by the
+license text shipped with it. See LICENSE for the governing text.
+Attribution for free use: "gjxdiff by Tibor Kovacs (Kotysoft)".
+Contact: support@giantjson.com
+
+----------------------------------------------------------------------
+
 gjxdiff 0.8.1 — performance release (2026-08-05)
 
 The static musl binary now carries its own x86-64 memcpy/memmove
