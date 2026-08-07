@@ -60,7 +60,7 @@ One command, no flags:
 
 ```
 $ gjxdiff a.json b.json
-gjxdiff 0.8.2
+gjxdiff 0.8.3
 a: a.json (json, 233 bytes)
 b: b.json (json, 242 bytes)
 
@@ -170,7 +170,7 @@ The same no-flag command on two exports of **five million order records,
 
 ```
 $ gjxdiff orders-monday.ndjson orders-tuesday.ndjson
-gjxdiff 0.8.2
+gjxdiff 0.8.3
 a: orders-monday.ndjson (ndjson, 554700225 bytes)
 b: orders-tuesday.ndjson (ndjson, 554700227 bytes)
 
@@ -225,9 +225,9 @@ gjxdiff --patch changes.json a.json b.json
 ### Argument rules
 
 Two positional arguments are required for every comparison. The only flags that run
-without them are `--about` and `--completions`.
+without them are `--about`, `--credits` and `--completions`.
 
-Print-and-exit flags (`--about`, `--completions`, `--help`, `--version`) run before
+Print-and-exit flags (`--about`, `--credits`, `--completions`, `--help`, `--version`) run before
 run-time validation: combined with flags that would be refused at run time (for
 example the unavailable `--large-arrays exact`), they still print and exit 0.
 Malformed flag syntax and unknown values remain parse errors (exit 2) in any
@@ -380,7 +380,7 @@ line included. (Two fields are run-derived by design: `filters.align_cap` and
 influenced the records — see the table below.)
 
 ```json
-{"gjxdiff":1,"tool":"0.8.2","stability":"draft","a":{"name":"a.json","bytes":10485760,"format":"json"},"b":{"name":"b.json","bytes":10493284,"format":"json"},"filters":{"key":null,"ignore":[],"path":null,"align_cap":null,"move_cap":null,"max_diffs":null,"only":null,"large_arrays":"coarse"}}
+{"gjxdiff":1,"tool":"0.8.3","stability":"draft","a":{"name":"a.json","bytes":10485760,"format":"json"},"b":{"name":"b.json","bytes":10493284,"format":"json"},"filters":{"key":null,"ignore":[],"path":null,"align_cap":null,"move_cap":null,"max_diffs":null,"only":null,"large_arrays":"coarse"}}
 ```
 
 | Field | Type | Meaning |
@@ -588,7 +588,7 @@ The view opens with a header block carrying the same information as the machine 
 line:
 
 ```
-gjxdiff 0.8.2
+gjxdiff 0.8.3
 a: orders-2026-07.ndjson (ndjson, 2684354560 bytes)
 b: orders-2026-08.ndjson (ndjson, 2691823104 bytes)
 filters: key=order_id · ignore=ts,updated_at
@@ -1872,6 +1872,12 @@ Copyright (C) 2026 Tibor Kovacs (Kotysoft). Commercial licensing:
 support@giantjson.com
 
 `gjxdiff --version` and `gjxdiff --about` print the attribution block.
+
+**Third-party components.** The binary statically links a number of
+open-source components. Their licenses and copyright notices are listed in the
+`THIRD-PARTY-NOTICES.md` file shipped alongside the binary, and
+`gjxdiff --credits` prints the same list, so the attribution travels with the
+binary itself.
 
 ---
 

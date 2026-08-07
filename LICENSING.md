@@ -57,6 +57,15 @@ products: support@giantjson.com
 - Each release is governed by the license text shipped with it. A later
   license version never rewrites the terms for a copy you already have.
 
+## Third-party components
+
+The binary statically links a number of open-source components (all
+permissively licensed; the full list with copyright notices is in the
+THIRD-PARTY-NOTICES.md file shipped in the release archive, and
+`gjxdiff --credits` prints the same list). Their licenses grant broader
+rights for those components than the gjxdiff license does; LICENSE
+section 6 says so explicitly.
+
 ## Warranty
 
 None. The software is provided as is. See LICENSE sections 9 and 11.

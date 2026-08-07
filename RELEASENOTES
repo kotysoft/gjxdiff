@@ -1,3 +1,17 @@
+gjxdiff 0.8.3 (2026-08-07)
+
+- Significantly faster comparisons on large files: up to ~30% on
+  multi-gigabyte NDJSON and JSON inputs.
+- Faster filtered (--ignore) comparisons.
+- New: native Linux ARM64 (aarch64) build alongside x86-64.
+- The progress line now keeps advancing through the analysis and
+  comparison stages, including while a single very large array is
+  being compared.
+- Output is fully identical to 0.8.2: same results, same formats,
+  byte for byte.
+
+----------------------------------------------------------------------
+
 gjxdiff 0.8.2 (2026-08-06)
 
 - Streams, named pipes and process substitution now work as inputs.

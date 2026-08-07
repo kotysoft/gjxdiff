@@ -1,4 +1,4 @@
-.TH GJXDIFF 1 "2026-08-06" "gjxdiff 0.8.2" "User Commands"
+.TH GJXDIFF 1 "2026-08-07" "gjxdiff 0.8.3" "User Commands"
 .SH NAME
 gjxdiff \- structural diff for JSON and NDJSON files
 .SH SYNOPSIS
@@ -9,6 +9,9 @@ gjxdiff \- structural diff for JSON and NDJSON files
 .br
 .B gjxdiff
 .B \-\-about
+.br
+.B gjxdiff
+.B \-\-credits
 .br
 .B gjxdiff
 .B \-\-completions
@@ -55,7 +58,7 @@ inject terminal control sequences.
 The two inputs. Required for every comparison; only the print-and-exit
 flags
 .RB ( \-\-about ,
-.BR \-\-completions )
+.BR \-\-credits ", " \-\-completions )
 run without them. Passing
 .B \-
 for ONE of them reads that side from standard input: the stream is
@@ -457,12 +460,17 @@ or drop \-\-patch.
 .B \-\-about
 Print the version/attribution block plus a one-line description and the
 licensing contact, then exit 0. Like every print-and-exit flag
-.RB ( \-\-completions ", " \-\-help ", " \-\-version ),
+.RB ( \-\-credits ", " \-\-completions ", " \-\-help ", " \-\-version ),
 it runs BEFORE run-time validation: combined with flags that would be
 refused at run time (say, an unavailable mode like
 .BR "\-\-large\-arrays exact" ),
 it still prints and exits 0. Malformed flag syntax and unknown values
 remain parse errors (exit 2) in any combination.
+.TP
+.B \-\-credits
+Print the third-party open-source license notices (the bundled
+THIRD\-PARTY\-NOTICES file), then exit 0 — the attribution travels with
+the binary itself, not just the release archive.
 .TP
 .BI \-\-completions " SHELL"
 Print a shell completion script for
@@ -665,6 +673,9 @@ License: free for individuals and organizations under 100 people, with
 attribution; commercial license required for automated use in larger
 organizations and for embedding in commercial products. See the LICENSE
 file shipped with the binary.
+The binary statically links open-source components; their licenses are
+listed in the THIRD\-PARTY\-NOTICES file and printed by
+.BR "gjxdiff \-\-credits" .
 Contact: support@giantjson.com
 .SH SEE ALSO
 .BR diff (1),

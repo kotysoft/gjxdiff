@@ -1,4 +1,4 @@
-gjxdiff License — Version 1.1 (2026-08-04)
+gjxdiff License — Version 1.2 (2026-08-07)
 
 Copyright (C) 2026 Tibor Kovacs (Kotysoft). All rights reserved.
 
@@ -74,6 +74,12 @@ terms below.
    Software on a standalone basis; (e) circumvent the license terms,
    including misrepresenting organization size or disguising Automated
    Use as Interactive Use.
+
+   The restrictions in this Section do not affect the third-party
+   open-source components incorporated into the Software to the extent
+   their own licenses grant broader rights. Those components and their
+   licenses are listed in the THIRD-PARTY-NOTICES file shipped with the
+   Software, and the Software prints them via "gjxdiff --credits".
 
 7. COMMERCIAL LICENSES
 

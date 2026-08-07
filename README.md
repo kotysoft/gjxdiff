@@ -29,7 +29,7 @@ gjxdiff orders-monday.ndjson orders-tuesday.ndjson > report.ndjson
 ```
 
 ```json
-{"gjxdiff":1,"tool":"0.8.2","stability":"draft","a":{"name":"orders-monday.ndjson","bytes":554700225,"format":"ndjson"},"b":{"name":"orders-tuesday.ndjson","bytes":554700227,"format":"ndjson"},"filters":{"key":null,"ignore":[],"path":null,"align_cap":null,"move_cap":null,"max_diffs":null,"only":null,"large_arrays":"coarse"}}
+{"gjxdiff":1,"tool":"0.8.3","stability":"draft","a":{"name":"orders-monday.ndjson","bytes":554700225,"format":"ndjson"},"b":{"name":"orders-tuesday.ndjson","bytes":554700227,"format":"ndjson"},"filters":{"key":null,"ignore":[],"path":null,"align_cap":null,"move_cap":null,"max_diffs":null,"only":null,"large_arrays":"coarse"}}
 {"i":0,"op":"changed","path":"$[*].status","ptr":"/232125/status","a_off":247274707,"a_len":11,"b_off":25751743,"b_len":9,"flags":["keyed"]}
 {"i":1,"op":"changed","path":"$[*].status","ptr":"/3510995/status","a_off":159960739,"a_len":9,"b_off":389509081,"b_len":11,"flags":["keyed"]}
 {"i":2,"op":"changed","path":"$[*].status","ptr":"/4420635/status","a_off":219481733,"a_len":9,"b_off":490425292,"b_len":11,"flags":["keyed"]}
@@ -105,7 +105,7 @@ the diff idea got its own standalone tool.
 
 ## Limitations
 
-- Linux x86-64 only. No Windows, macOS or ARM builds.
+- Linux only, x86-64 and ARM64 (aarch64). No Windows or macOS builds.
 - Single-threaded by design. A large diff takes the time it takes.
 - Binary-only, proprietary. Free for individuals and organizations under 100
   people; see [LICENSING.md](LICENSING.md).
@@ -120,15 +120,16 @@ the diff idea got its own standalone tool.
 
 ## Install
 
-`gjxdiff` ships as a prebuilt, dependency-free static Linux binary. The
-download link is the same for every release:
+`gjxdiff` ships as a prebuilt, dependency-free static Linux binary for
+x86-64 and ARM64. The download link is the same for every release — the
+asset name carries your architecture exactly as `uname -m` prints it:
 
 ```sh
-curl -LO https://github.com/kotysoft/gjxdiff/releases/latest/download/gjxdiff-x86_64-linux-musl.tar.gz
+curl -LO https://github.com/kotysoft/gjxdiff/releases/latest/download/gjxdiff-$(uname -m)-linux-musl.tar.gz
 curl -LO https://github.com/kotysoft/gjxdiff/releases/latest/download/SHA256SUMS
-sha256sum -c SHA256SUMS
+sha256sum --ignore-missing -c SHA256SUMS
 mkdir -p gjxdiff-dist
-tar xzf gjxdiff-x86_64-linux-musl.tar.gz -C gjxdiff-dist --strip-components=1
+tar xzf gjxdiff-$(uname -m)-linux-musl.tar.gz -C gjxdiff-dist --strip-components=1
 sudo install -m 0755 gjxdiff-dist/gjxdiff /usr/local/bin/gjxdiff
 gjxdiff --version
 ```

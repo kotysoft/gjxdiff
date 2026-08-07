@@ -1,7 +1,8 @@
 # Installing gjxdiff
 
-Requirements: Linux, x86-64. The binary is fully static (musl libc), so it
-runs on any distribution and in containers. Nothing else is needed.
+Requirements: Linux, x86-64 or ARM64 (aarch64). The binary is fully static
+(musl libc), so it runs on any distribution and in containers. Nothing else
+is needed.
 
 Everything below points at the
 [latest release](https://github.com/kotysoft/gjxdiff/releases/latest). The
@@ -11,10 +12,13 @@ line, and the directory the tarball unpacks into.
 
 ## 1. Download and verify
 
+The asset name carries your machine's architecture exactly as `uname -m`
+prints it (`x86_64` or `aarch64`):
+
 ```sh
-curl -LO https://github.com/kotysoft/gjxdiff/releases/latest/download/gjxdiff-x86_64-linux-musl.tar.gz
+curl -LO https://github.com/kotysoft/gjxdiff/releases/latest/download/gjxdiff-$(uname -m)-linux-musl.tar.gz
 curl -LO https://github.com/kotysoft/gjxdiff/releases/latest/download/SHA256SUMS
-sha256sum -c SHA256SUMS
+sha256sum --ignore-missing -c SHA256SUMS
 ```
 
 Expect one `OK` line. A `FAILED` line, or no output at all, means the file is
@@ -27,7 +31,7 @@ The tarball unpacks into a directory named after the release, so
 
 ```sh
 mkdir -p gjxdiff-dist
-tar xzf gjxdiff-x86_64-linux-musl.tar.gz -C gjxdiff-dist --strip-components=1
+tar xzf gjxdiff-$(uname -m)-linux-musl.tar.gz -C gjxdiff-dist --strip-components=1
 sudo install -m 0755 gjxdiff-dist/gjxdiff /usr/local/bin/gjxdiff
 ```
 
@@ -65,14 +69,16 @@ gjxdiff --completions bash | sudo tee /etc/bash_completion.d/gjxdiff > /dev/null
 
 Every release is on the
 [releases page](https://github.com/kotysoft/gjxdiff/releases), each with the
-same two files. To install one, put its tag in place of `latest`:
+same file names (the aarch64 tarball exists from v0.8.3 on). To install one,
+put its tag in place of `latest`:
 
 ```sh
 curl -LO https://github.com/kotysoft/gjxdiff/releases/download/v0.8.1/gjxdiff-x86_64-linux-musl.tar.gz
 curl -LO https://github.com/kotysoft/gjxdiff/releases/download/v0.8.1/SHA256SUMS
 ```
 
-Everything after that is the same.
+Everything after that is the same. ARM64 tarballs exist for newer releases
+only; the earliest releases shipped x86-64 alone.
 
 ## Uninstall
 

@@ -3,6 +3,7 @@
 ```
 gjxdiff [OPTIONS] <FILE_A> <FILE_B>
 gjxdiff --about
+gjxdiff --credits
 gjxdiff --completions <bash|zsh|fish>
 ```
 
@@ -100,6 +101,7 @@ representation-only difference is exit 0 with a `[]` patch.
 | `-h`, `--help` | Help (`-h` is the summary) |
 | `-V`, `--version` | Version and attribution block |
 | `--about` | The same block plus a description and the licensing contact. Runs without input files |
+| `--credits` | Third-party open-source license notices. Runs without input files |
 | `--completions SHELL` | Print a bash/zsh/fish completion script. Runs without input files |
 
 ---
@@ -118,7 +120,7 @@ representation-only difference is exit 0 with a `[]` patch.
 ## Meta line (report line 1)
 
 ```json
-{"gjxdiff":1,"tool":"0.8.2","stability":"draft","a":{...},"b":{...},"filters":{...}}
+{"gjxdiff":1,"tool":"0.8.3","stability":"draft","a":{...},"b":{...},"filters":{...}}
 ```
 
 | Key | Value |
